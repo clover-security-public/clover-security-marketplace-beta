@@ -99,18 +99,24 @@ if [ -n "$TARGET" ] && ! grep -qs 'clover/env.sh' "$TARGET/.gitignore" 2>/dev/nu
 fi
 
 # Credentials: prompt on a terminal, otherwise leave a template. /dev/tty is
-# read directly because under `curl | bash` stdin is the script itself.
+# read directly because under `curl | bash` stdin is the script itself. The
+# probe must actually OPEN /dev/tty: in headless shells the node exists and
+# passes -r/-w, but opening it fails with "Device not configured" — and an
+# unguarded redirect there would kill the whole install under `set -e`.
 ENV_FILE="$DEST/clover/env.sh"
 if [ ! -f "$ENV_FILE" ]; then
   CLIENT_ID=""
   CLIENT_SECRET=""
-  if [ -r /dev/tty ] && [ -w /dev/tty ] && [ -z "${CLOVER_NO_PROMPT:-}" ]; then
-    printf 'Clover credentials (from the Clover admin page - leave empty to fill in later)\n' > /dev/tty
-    printf 'Client ID: ' > /dev/tty
-    IFS= read -r CLIENT_ID < /dev/tty || CLIENT_ID=""
-    printf 'Client secret: ' > /dev/tty
-    IFS= read -rs CLIENT_SECRET < /dev/tty || CLIENT_SECRET=""
-    printf '\n' > /dev/tty
+  if [ -z "${CLOVER_NO_PROMPT:-}" ] && { exec 3<>/dev/tty; } 2>/dev/null; then
+    {
+      printf 'Clover credentials (from the Clover admin page - leave empty to fill in later)\n' >&3
+      printf 'Client ID: ' >&3
+      IFS= read -r CLIENT_ID <&3 || CLIENT_ID=""
+      printf 'Client secret: ' >&3
+      IFS= read -rs CLIENT_SECRET <&3 || CLIENT_SECRET=""
+      printf '\n' >&3
+    } 2>/dev/null || true
+    exec 3>&- 2>/dev/null || true
   fi
   cat > "$ENV_FILE" <<EOF
 export CAS_CLOVER_PLUGIN_CLIENT_ID=${CLIENT_ID:-FILL_ME}
