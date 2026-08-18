@@ -23,7 +23,7 @@ case "$(uname -s | tr '[:upper:]' '[:lower:]')" in
 esac
 BINARY="${CLAUDE_PLUGIN_DATA}/bin/clover-hook${EXE_SUFFIX}"
 VERSION_FILE="${CLAUDE_PLUGIN_DATA}/bin/.version"
-PLUGIN_VERSION=$(grep -o '"version"[[:space:]]*:[[:space:]]*"[^"]*"' "${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json" 2>/dev/null | grep -o '[0-9][0-9.]*')
+PLUGIN_VERSION=$(grep -o '"version"[[:space:]]*:[[:space:]]*"[^"]*"' "${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json" 2>/dev/null | head -1 | sed 's/.*"\([^"]*\)"$/\1/')
 if [ ! -x "$BINARY" ] || [ "$(cat "$VERSION_FILE" 2>/dev/null)" != "$PLUGIN_VERSION" ]; then
     bash "${CLAUDE_PLUGIN_ROOT}/claude/scripts/setup.sh"
 fi
@@ -40,9 +40,14 @@ fi
 # in setup.sh and its TODO(clover-coding-plugin) for removal criteria.
 REGISTRY="${HOME}/.claude/plugins/installed_plugins.json"
 HOOK_PLUGIN_NAME=$(grep -o '"name"[[:space:]]*:[[:space:]]*"[^"]*"' "${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json" 2>/dev/null | head -1 | sed 's/.*"\([^"]*\)"$/\1/')
-HOOK_MARKETPLACE_NAME=$(grep -o '"marketplace"[[:space:]]*:[[:space:]]*"[^"]*"' "${CLAUDE_PLUGIN_ROOT}/.claude-plugin/channel.json" 2>/dev/null | sed 's/.*"\([^"]*\)"$/\1/')
 [ -n "$HOOK_PLUGIN_NAME" ] || HOOK_PLUGIN_NAME="clover"
-[ -n "$HOOK_MARKETPLACE_NAME" ] || HOOK_MARKETPLACE_NAME="clover-security"
+# Marketplace name follows the channel, which the version suffix encodes
+# (public is the default for anything unrecognized).
+case "$PLUGIN_VERSION" in
+  *-beta*)  HOOK_MARKETPLACE_NAME="clover-security-beta" ;;
+  *-local*) HOOK_MARKETPLACE_NAME="clover-security-local" ;;
+  *)        HOOK_MARKETPLACE_NAME="clover-security" ;;
+esac
 if [ ! -f "$REGISTRY" ] || ! grep -q "\"${HOOK_PLUGIN_NAME}@${HOOK_MARKETPLACE_NAME}\"" "$REGISTRY" 2>/dev/null; then
     bash "${CLAUDE_PLUGIN_ROOT}/claude/scripts/setup.sh" >/dev/null 2>&1 || true
 fi

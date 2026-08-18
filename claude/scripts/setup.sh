@@ -6,17 +6,18 @@
 # Public repo for the release-asset fallback path.
 REPO="clover-security-public/agentic-security-marketplace"
 
-# Channel identity — stamped into every tree by scripts/assemble-plugin-tree.sh
-# in clover-hook-source. Everything that addresses this install (registry key,
-# marketplace clone path, release fallback) derives from it; a tree without a
-# stamp is treated as a legacy public install.
-CHANNEL_FILE="${CLAUDE_PLUGIN_ROOT}/.claude-plugin/channel.json"
-CHANNEL=$(grep -o '"channel"[[:space:]]*:[[:space:]]*"[^"]*"' "$CHANNEL_FILE" 2>/dev/null | sed 's/.*"\([^"]*\)"$/\1/')
-MARKETPLACE_NAME=$(grep -o '"marketplace"[[:space:]]*:[[:space:]]*"[^"]*"' "$CHANNEL_FILE" 2>/dev/null | sed 's/.*"\([^"]*\)"$/\1/')
+# Channel identity, derived from the plugin version: the release train encodes
+# it (X.Y.Z-beta.N = org ring, -local = developer build, plain X.Y.Z = public).
+# Public is the default — a plain version, a legacy tree, or anything
+# unrecognized behaves exactly as the shipped public plugin always has.
 PLUGIN_NAME=$(grep -o '"name"[[:space:]]*:[[:space:]]*"[^"]*"' "${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json" 2>/dev/null | head -1 | sed 's/.*"\([^"]*\)"$/\1/')
-[ -n "$CHANNEL" ] || CHANNEL="public"
-[ -n "$MARKETPLACE_NAME" ] || MARKETPLACE_NAME="clover-security"
+FULL_VERSION=$(grep -o '"version"[[:space:]]*:[[:space:]]*"[^"]*"' "${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json" 2>/dev/null | head -1 | sed 's/.*"\([^"]*\)"$/\1/')
 [ -n "$PLUGIN_NAME" ] || PLUGIN_NAME="clover"
+case "$FULL_VERSION" in
+  *-beta*)  CHANNEL="beta";   MARKETPLACE_NAME="clover-security-beta" ;;
+  *-local*) CHANNEL="local";  MARKETPLACE_NAME="clover-security-local" ;;
+  *)        CHANNEL="public"; MARKETPLACE_NAME="clover-security" ;;
+esac
 REGISTRY_KEY="${PLUGIN_NAME}@${MARKETPLACE_NAME}"
 
 # Integrity gate: every binary this script deploys must match the SHA-256
@@ -263,8 +264,9 @@ BINARY="$BINARY_DIR/clover-hook${EXE_SUFFIX}"
 VERSION_FILE="$BINARY_DIR/.version"
 ASSET_NAME="clover-hook-${OS}-${ARCH}${EXE_SUFFIX}"
 
-# Get current plugin version
-PLUGIN_VERSION=$(grep -o '"version"[[:space:]]*:[[:space:]]*"[^"]*"' "${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json" 2>/dev/null | grep -o '[0-9][0-9.]*')
+# Current plugin version, full string — prerelease suffix included, so beta
+# trees pin their exact -beta.N build.
+PLUGIN_VERSION="$FULL_VERSION"
 
 # Skip if binary exists and version matches
 if [ -x "$BINARY" ] && [ -f "$VERSION_FILE" ] && [ "$(cat "$VERSION_FILE")" = "$PLUGIN_VERSION" ]; then

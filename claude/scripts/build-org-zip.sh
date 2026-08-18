@@ -47,13 +47,6 @@ cp .claude-plugin/plugin.json "$STAGE/.claude-plugin/"
 jq '(.plugins |= map(select(.name == "clover"))) | (.plugins[0].source = ".")' \
     .claude-plugin/marketplace.json > "$STAGE/.claude-plugin/marketplace.json"
 
-# Channel stamp: setup.sh reads it to resolve the registry key and to decide
-# whether a remote binary fallback is allowed. Ship it so the bundle states its
-# channel explicitly instead of relying on setup.sh's default.
-if [ -f .claude-plugin/channel.json ]; then
-    cp .claude-plugin/channel.json "$STAGE/.claude-plugin/"
-fi
-
 # Hook config: strip the check-update SessionStart hook. Air-gapped installs
 # can't reach GitHub to self-update (updates arrive by re-shipping this bundle),
 # so it would only hang on the 30s timeout and spam the hook log. The setup.sh
