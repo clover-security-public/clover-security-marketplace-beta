@@ -1,54 +1,128 @@
 #!/usr/bin/env bash
-# Install the Clover Kiro drop-in into a repository.
+# Install Clover for Kiro.
 #
-#   bash kiro/scripts/install.sh /path/to/repo
+# One-liner (installs for every repo on this machine, prompts for credentials):
 #
-# Kiro loads hooks from the workspace, not from an installed plugin, so the
-# surface is copied into <repo>/.kiro/. Credentials are not written - create
-# <repo>/.kiro/clover/env.sh afterwards (see README).
+#   curl -fsSL https://raw.githubusercontent.com/clover-security-public/agentic-security-marketplace/main/kiro/scripts/install.sh | bash
+#
+# Or, into a single repository (the drop-in a team commits to git):
+#
+#   curl -fsSL .../kiro/scripts/install.sh | bash -s -- /path/to/repo
+#
+# The script works both piped (downloads what it needs from the marketplace's
+# raw URLs) and from a local checkout of the marketplace tree (copies files).
+# Credentials are prompted on a terminal and land in clover/env.sh (0600,
+# gitignored); they are never downloaded and never committed.
 set -euo pipefail
+
+MARKETPLACE_URL="${CLOVER_MARKETPLACE_URL:-https://raw.githubusercontent.com/clover-security-public/agentic-security-marketplace/main}"
 
 TARGET="${1:-}"
 
-if [ -z "$TARGET" ] || [ ! -d "$TARGET" ]; then
-  printf 'usage: bash kiro/scripts/install.sh /path/to/repo\n' >&2
+if [ -n "$TARGET" ] && [ ! -d "$TARGET" ]; then
+  printf 'usage: install.sh [/path/to/repo]\n' >&2
+  printf '  no argument: install machine-wide (~/.kiro), covers every repo\n' >&2
+  printf '  with a path: install into that repository (.kiro drop-in)\n' >&2
   exit 1
 fi
 
-SURFACE="$(cd "$(dirname "$0")/.." && pwd)"       # .../kiro
-PACKAGE="$(cd "$SURFACE/.." && pwd)"              # the assembled plugin tree
+OS="$(uname -s | tr '[:upper:]' '[:lower:]')"
+case "$OS" in mingw*|msys*|cygwin*|windows_nt*) OS="windows" ;; esac
+ARCH="$(uname -m)"
+case "$ARCH" in x86_64) ARCH="amd64" ;; aarch64|arm64) ARCH="arm64" ;; esac
+EXE=""
+[ "$OS" = "windows" ] && EXE=".exe"
+BINARY_NAME="clover-hook-${OS}-${ARCH}${EXE}"
 
-DEST="$TARGET/.kiro"
+# A local marketplace tree is present when the script runs from one (a clone);
+# piped through curl there is no tree, so files are downloaded instead.
+TREE=""
+if SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-/dev/null}")" 2>/dev/null && pwd)" \
+  && [ -f "$SCRIPT_DIR/../hooks/clover.json" ]; then
+  TREE="$(cd "$SCRIPT_DIR/../.." && pwd)"
+fi
+
+# obtain <path-in-marketplace-tree> <destination>
+obtain() {
+  if [ -n "$TREE" ] && [ -f "$TREE/$1" ]; then
+    cp "$TREE/$1" "$2"
+  else
+    curl -fsSL "$MARKETPLACE_URL/$1" -o "$2" \
+      || { printf 'clover: failed to download %s\n' "$MARKETPLACE_URL/$1" >&2; return 1; }
+  fi
+}
+
+if [ -n "$TARGET" ]; then
+  DEST="$TARGET/.kiro"
+  HOOK_COMMAND_PREFIX=".kiro/clover"
+else
+  DEST="${HOME}/.kiro"
+  HOOK_COMMAND_PREFIX="${HOME}/.kiro/clover"
+fi
 mkdir -p "$DEST/hooks" "$DEST/clover/scripts" "$DEST/clover/bin"
 
-cp "$SURFACE/hooks/clover.json" "$DEST/hooks/clover.json"
-printf 'installed hooks\n'
+obtain "kiro/hooks/clover.json" "$DEST/hooks/clover.json.tmp"
+# The shipped hook config invokes the launcher relative to a repo root; a
+# machine-wide install needs the absolute path under $HOME instead.
+sed "s|\.kiro/clover/scripts/run-hook.sh|${HOOK_COMMAND_PREFIX}/scripts/run-hook.sh|g" \
+  "$DEST/hooks/clover.json.tmp" > "$DEST/hooks/clover.json"
+rm -f "$DEST/hooks/clover.json.tmp"
 
-cp "$SURFACE/scripts/run-hook.sh" "$DEST/clover/scripts/"
+obtain "kiro/scripts/run-hook.sh" "$DEST/clover/scripts/run-hook.sh"
 chmod +x "$DEST/clover/scripts/run-hook.sh"
 
-if ! cp "$PACKAGE/bin/"clover-hook-* "$DEST/clover/bin/" 2>/dev/null; then
-  printf 'warning: no binaries at %s/bin - copy clover-hook-<os>-<arch> into %s/clover/bin/\n' \
-    "$PACKAGE" "$DEST" >&2
-fi
-chmod +x "$DEST/clover/bin/"* 2>/dev/null || true
+obtain "bin/$BINARY_NAME" "$DEST/clover/bin/$BINARY_NAME"
+chmod +x "$DEST/clover/bin/$BINARY_NAME"
 
-if ! grep -qs 'clover/env.sh' "$TARGET/.gitignore" 2>/dev/null; then
+# Verify the binary against the marketplace's checksum manifest. A missing
+# manifest is tolerated; a mismatching binary is not.
+CHECKSUMS="$(mktemp)"
+if obtain "bin/checksums.sha256" "$CHECKSUMS" 2>/dev/null; then
+  EXPECTED="$(awk -v name="$BINARY_NAME" '$2 == name { print $1 }' "$CHECKSUMS" | head -1)"
+  if [ -n "$EXPECTED" ]; then
+    if command -v sha256sum >/dev/null; then
+      ACTUAL="$(sha256sum "$DEST/clover/bin/$BINARY_NAME" | cut -d' ' -f1)"
+    else
+      ACTUAL="$(shasum -a 256 "$DEST/clover/bin/$BINARY_NAME" | cut -d' ' -f1)"
+    fi
+    if [ "$EXPECTED" != "$ACTUAL" ]; then
+      printf 'clover: checksum mismatch for %s - aborting\n' "$BINARY_NAME" >&2
+      rm -f "$DEST/clover/bin/$BINARY_NAME" "$CHECKSUMS"
+      exit 1
+    fi
+  fi
+fi
+rm -f "$CHECKSUMS"
+
+if [ -n "$TARGET" ] && ! grep -qs 'clover/env.sh' "$TARGET/.gitignore" 2>/dev/null; then
   printf '\n# Clover credentials - never commit\n.kiro/clover/env.sh\n' >> "$TARGET/.gitignore"
 fi
 
-cat <<EOF
-
-Installed into $TARGET
-
-Next:
-  1. Create $DEST/clover/env.sh:
-       export CAS_CLOVER_PLUGIN_CLIENT_ID=...
-       export CAS_CLOVER_PLUGIN_CLIENT_SECRET=...
-       export CAS_CLOVER_PLUGIN_AUTH_URL=https://clover.frontegg.com
-       export CAS_CLOVER_PLUGIN_SERVER_URL=https://app.cloversec.io
-  2. Open $TARGET in Kiro and TRUST the workspace.
-     An untrusted workspace silently disables every hook.
-  3. Confirm: Output panel -> Kiro agent channel ->
-     "v2 hooks loaded 3 standalone hooks from .kiro/hooks/"
+# Credentials: prompt on a terminal, otherwise leave a template. /dev/tty is
+# read directly because under `curl | bash` stdin is the script itself.
+ENV_FILE="$DEST/clover/env.sh"
+if [ ! -f "$ENV_FILE" ]; then
+  CLIENT_ID=""
+  CLIENT_SECRET=""
+  if [ -r /dev/tty ] && [ -w /dev/tty ] && [ -z "${CLOVER_NO_PROMPT:-}" ]; then
+    printf 'Clover credentials (from the Clover admin page - leave empty to fill in later)\n' > /dev/tty
+    printf 'Client ID: ' > /dev/tty
+    IFS= read -r CLIENT_ID < /dev/tty || CLIENT_ID=""
+    printf 'Client secret: ' > /dev/tty
+    IFS= read -rs CLIENT_SECRET < /dev/tty || CLIENT_SECRET=""
+    printf '\n' > /dev/tty
+  fi
+  cat > "$ENV_FILE" <<EOF
+export CAS_CLOVER_PLUGIN_CLIENT_ID=${CLIENT_ID:-FILL_ME}
+export CAS_CLOVER_PLUGIN_CLIENT_SECRET=${CLIENT_SECRET:-FILL_ME}
+export CAS_CLOVER_PLUGIN_AUTH_URL=https://clover.frontegg.com
+export CAS_CLOVER_PLUGIN_SERVER_URL=https://app.cloversec.io
 EOF
+  chmod 600 "$ENV_FILE"
+fi
+
+printf 'clover: installed to %s\n' "$DEST"
+if grep -q 'FILL_ME' "$ENV_FILE"; then
+  printf 'clover: add your credentials to %s\n' "$ENV_FILE"
+fi
+printf 'clover: trust each workspace in Kiro - untrusted workspaces silently disable all hooks\n'

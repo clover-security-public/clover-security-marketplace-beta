@@ -27,29 +27,40 @@ exits 0.
 
 ## Install
 
-Kiro loads hooks from the workspace rather than from an installed plugin, so the
-surface is copied into the repository:
+One command, once per machine — it covers every repository via Kiro's global
+`~/.kiro/hooks/` path, downloads only the binary for the current platform
+(checksum-verified), and prompts for the two credential values:
 
 ```bash
-bash kiro/scripts/install.sh /path/to/repo
+curl -fsSL https://raw.githubusercontent.com/clover-security-public/agentic-security-marketplace/main/kiro/scripts/install.sh | bash
 ```
 
-That writes:
+To install into a single repository instead (the drop-in a team commits to
+git so cloning developers get the hooks with no install step):
+
+```bash
+curl -fsSL .../kiro/scripts/install.sh | bash -s -- /path/to/repo
+```
+
+The script also runs from a local checkout of the marketplace tree, copying
+instead of downloading. `CLOVER_MARKETPLACE_URL` overrides the download base
+(the beta ring's raw URL, or a mirror). Layout after a machine-wide install:
 
 ```
-<repo>/.kiro/
-  hooks/clover.json              # the three hooks above
+~/.kiro/
+  hooks/clover.json              # the three hooks above, absolute-path commands
   clover/
     scripts/run-hook.sh          # resolves the platform binary, loads env.sh, exec
     bin/clover-hook-<os>-<arch>
-    env.sh                       # credentials — you create this, gitignored
+    env.sh                       # credentials — prompted, 0600, never committed
 ```
 
-Then create `<repo>/.kiro/clover/env.sh` with the four `CAS_CLOVER_PLUGIN_*`
-values, open the repo in Kiro, and **trust the workspace** — an untrusted
-workspace silently turns every hook into a no-op, logged only at debug level.
+Credentials can also be pre-provisioned by dropping `env.sh` in place (MDM,
+dotfiles) — the installer never overwrites an existing one.
 
-Confirm with the Output panel → Kiro agent channel:
+Then open a repo in Kiro and **trust the workspace** — an untrusted workspace
+silently turns every hook into a no-op, logged only at debug level. Confirm
+with the Output panel → Kiro agent channel:
 `[KiroAgent] v2 hooks loaded 3 standalone hooks from .kiro/hooks/`.
 
 ## When a new Kiro build changes its payload
