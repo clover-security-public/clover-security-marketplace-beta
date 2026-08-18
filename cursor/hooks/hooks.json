@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "hooks": {
+    "sessionStart": [
+      {
+        "command": "\"${CURSOR_PLUGIN_ROOT}/cursor/scripts/clover-hook.cmd\" setup"
+      }
+    ],
+    "beforeSubmitPrompt": [
+      {
+        "command": "\"${CURSOR_PLUGIN_ROOT}/cursor/scripts/clover-hook.cmd\" log-prompt"
+      }
+    ],
+    "stop": [
+      {
+        "command": "\"${CURSOR_PLUGIN_ROOT}/cursor/scripts/clover-hook.cmd\" review-plan-stop",
+        "timeout": 300,
+        "loop_limit": 3
+      }
+    ]
+  }
+}

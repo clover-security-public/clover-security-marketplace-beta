@@ -1,22 +1,51 @@
-# clover-security-marketplace-beta
+<div align="center">
 
-Org-only **beta channel** of the Clover plugin marketplace — a private mirror of the public
-marketplace (`agentic-security-marketplace`), carrying beta versions of every plugin it lists.
-The whole Clover org rides this channel so builds soak here before customers ever see them.
+# 🍀 Clover for Coding Agents
 
-## How content gets here
+### Ship secure code at agent speed.
 
-- **Automatically**, on every push to `main` in
-  [`clover-hook-source`](https://github.com/clover-security-public/clover-hook-source): CI builds
-  the hook binaries, assembles the channel-stamped plugin tree, and pushes it here.
-- **By hand**, for quick plugin-file experiments (new hooks, skills, scripts) — direct pushes to
-  `main` are allowed. Durable changes belong in `clover-hook-source`, since the next automatic
-  delivery overwrites this tree.
+Clover silently reviews every plan your AI coding agent makes, surfaces the security requirements it missed, and folds them into the work **before a single line of code is written** — no questions, no detours, no slowdown.
 
-Customers are never served from this repo. The public marketplace moves only via the manual
-**Promote to public marketplaces** workflow in `clover-hook-source`.
+[**📖 Full Setup Guide →**](https://docs.cloversec.io/product-guides/securing-agentic-development/connecting-clover-to-coding-agents)
 
-## Installing the beta channel
+</div>
 
-Requires read access to this private repo with your own GitHub identity (`gh auth login`).
-The org's managed settings carry the marketplace registration, plugin enablement, and config.
+---
+
+## Quick start
+
+> **Prerequisites:** A Clover account. Grab your API credentials from **Clover Settings → API Tokens**. You'll need: `server_url`, `auth_url`, `client_id`, and `client_secret`.
+
+### Claude Code
+
+1. **Add the Clover marketplace:**
+   ```
+   /plugin marketplace add clover-security-public/agentic-security-marketplace
+   ```
+2. **Install the plugin:**
+   ```
+   /plugin install clover
+   ```
+3. **Enter your credentials** when prompted (`server_url`, `auth_url`, `client_id`, `client_secret`).
+4. **That's it.** From your next plan onward, Clover reviews automatically — no further action needed.
+
+### Cursor
+
+1. Install the **Clover** plugin from the Cursor plugin marketplace.
+2. Provide your Clover API credentials.
+3. Start planning — Clover reviews every plan in the background.
+
+### Windows
+
+The plugin ships native Windows executables for x64 and ARM64. Claude Code's
+native Windows setup already requires Git for Windows; Cursor users should
+install [Git for Windows](https://git-scm.com/download/win) and make sure
+`bash.exe` is available on `PATH`.
+
+👉 **For detailed, screenshot-by-screenshot instructions, org-wide rollout, and troubleshooting, see the [Connecting Clover to Coding Agents guide](https://docs.cloversec.io/product-guides/securing-agentic-development/connecting-clover-to-coding-agents).**
+
+---
+
+<div align="center">
+<sub>Built by Clover Security · Protect your coding-agent experience.</sub>
+</div>

@@ -1,0 +1,59 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/claude/scripts/setup.sh\"",
+            "shell": "bash"
+          },
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/claude/scripts/run-hook.sh\" check-update",
+            "shell": "bash",
+            "async": true,
+            "timeout": 30
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "ExitPlanMode",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/claude/scripts/run-hook.sh\" review-plan",
+            "shell": "bash",
+            "timeout": 300
+          }
+        ]
+      },
+      {
+          "matcher": "Edit|Write|MultiEdit",
+          "hooks": [
+            {
+              "type": "command",
+              "command": "bash \"${CLAUDE_PLUGIN_ROOT}/claude/scripts/run-hook.sh\" should-review-plan",
+              "shell": "bash",
+              "timeout": 300
+            }
+          ]
+        }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/claude/scripts/run-hook.sh\" log-prompt",
+            "shell": "bash",
+            "async": true,
+            "timeout": 20
+          }
+        ]
+      }
+    ]
+  }
+}
