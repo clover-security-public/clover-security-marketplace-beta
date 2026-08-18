@@ -27,6 +27,14 @@ exits 0.
 
 ## Install
 
+**macOS and Linux only for now — Windows is not supported yet.** The hook
+commands and installer are bash; Kiro spawns Windows hook commands through
+cmd.exe, so they never run there even though Windows binaries ship in `bin/`.
+Windows support means: hook commands rendered per-OS by the installer to
+invoke the binary directly (no shell), the binary loading the credentials
+file itself, an `install.ps1`, a `[\\/]` path matcher, and validation against
+Kiro's own open Windows hook issues (kirodotdev/Kiro#8264).
+
 One command, once per machine — it covers every repository via Kiro's global
 `~/.kiro/hooks/` path, downloads only the binary for the current platform
 (checksum-verified), and prompts for the two credential values:
@@ -58,10 +66,36 @@ instead of downloading. `CLOVER_MARKETPLACE_URL` overrides the download base
 Credentials can also be pre-provisioned by dropping `env.sh` in place (MDM,
 dotfiles) — the installer never overwrites an existing one.
 
-Then open a repo in Kiro and **trust the workspace** — an untrusted workspace
-silently turns every hook into a no-op, logged only at debug level. Confirm
-with the Output panel → Kiro agent channel:
+Then open a repo in Kiro and **trust the workspace** (see below). Confirm with
+the Output panel → Kiro agent channel:
 `[KiroAgent] v2 hooks loaded 3 standalone hooks from .kiro/hooks/`.
+
+## Workspace trust — required, or hooks stay silent
+
+Kiro turns **every** hook into a no-op in an untrusted folder, logging the
+suppression only at debug level — valid files, no card, no error, nothing in
+Clover. Every folder starts untrusted, so this is the most common reason a
+working install looks dead. Pick one:
+
+- **Trust a single folder** — open it in Kiro; when the trust banner appears,
+  choose to trust it. Or command palette → **Workspaces: Manage Workspace
+  Trust**. This is the safest option and the one to demo.
+- **Trust a parent folder once** — in *Manage Workspace Trust*, add the folder
+  that contains your repos (e.g. `~/Code`) to **Trusted Folders**. Everything
+  under it is trusted automatically, so new repos need no per-folder step,
+  while a repo cloned elsewhere still prompts.
+- **Trust every folder (turn the gate off)** — add to Kiro's user
+  `settings.json` (command palette → *Preferences: Open User Settings (JSON)*):
+
+  ```json
+  { "security.workspace.trust.enabled": false }
+  ```
+
+  Convenient, but it also lets hooks committed inside any repo you open run
+  automatically — a deliberate reduction of Kiro's own protection. Prefer the
+  parent-folder option unless you accept that trade-off. For a fleet, push this
+  (or a trusted-folders list) through managed settings / MDM so the org owns
+  the decision rather than each developer.
 
 ## When a new Kiro build changes its payload
 
