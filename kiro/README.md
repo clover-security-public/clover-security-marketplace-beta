@@ -88,6 +88,28 @@ diagnostics log — the adapter records the event name and the spec it resolved.
   `mcp.json` and `steering/`. A Clover *power* can ship steering and an MCP
   server; the hooks ship as this drop-in.
 
+## The companion power
+
+`clover-power/` is the Kiro *power* half of the surface: steering that teaches
+the agent to honor Clover's review verdicts and `.clover-requirements.md`
+files. Kiro installs powers straight from a Git URL — a subdirectory works via
+a `/tree/<branch>/<path>` link — so once this tree is delivered to a
+marketplace repo, install it with:
+
+1. Command palette → **Powers: Configure** → **Import power from GitHub**.
+2. Paste the marketplace URL for this directory, e.g. for the beta ring:
+   `https://github.com/clover-security-public/clover-security-marketplace-beta/tree/main/kiro/clover-power`
+
+The installer copies only `POWER.md` and `steering/` and registers the power as
+`clover-power` (Kiro derives the name from the last path segment). The beta
+marketplace repo is private, so the clone authenticates through your local git
+credentials; the public marketplace URL needs none.
+
+The power is optional and additive: the hooks enforce, the power only improves
+how the agent responds to an enforcement. It ships no MCP server yet — Kiro's
+remote-MCP auth against the Clover streaming endpoint is untested, and a
+failing MCP entry would make the whole power look broken.
+
 ## Debugging
 
 `CLOVER_DEBUG=1` in `env.sh` for diagnostics, `CLOVER_KIRO_OBSERVE=1` to
