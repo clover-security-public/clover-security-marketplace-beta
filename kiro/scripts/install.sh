@@ -71,6 +71,15 @@ rm -f "$DEST/hooks/clover.json.tmp"
 obtain "kiro/scripts/run-hook.sh" "$DEST/clover/scripts/run-hook.sh"
 chmod +x "$DEST/clover/scripts/run-hook.sh"
 
+# The version manifest. Kiro has no plugin system to report a version, so the
+# binary reads it from here and every backend row can name the release it came
+# from. Sourced from the tree's own manifest, which the release workflow stamps
+# per channel; a missing one costs only the version, so it must not fail the
+# install.
+mkdir -p "$DEST/clover/.kiro-plugin"
+obtain ".claude-plugin/plugin.json" "$DEST/clover/.kiro-plugin/plugin.json" \
+  || printf 'clover: version manifest unavailable - activity will report version "unknown"\n' >&2
+
 obtain "bin/$BINARY_NAME" "$DEST/clover/bin/$BINARY_NAME"
 chmod +x "$DEST/clover/bin/$BINARY_NAME"
 
