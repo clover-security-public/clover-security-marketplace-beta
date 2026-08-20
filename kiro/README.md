@@ -155,6 +155,27 @@ how the agent responds to an enforcement. It ships no MCP server yet — Kiro's
 remote-MCP auth against the Clover streaming endpoint is untested, and a
 failing MCP entry would make the whole power look broken.
 
+## Auto-update
+
+Kiro has no plugin manager, so a `SessionStart` hook (`kiro-check-update`) keeps
+the install current: when the channel's marketplace advertises a newer version,
+the binary downloads its own replacement, verifies it against the tree's
+`checksums.sha256`, and swaps it in with an atomic rename. Every failure path
+fails open — the session always starts — and an install whose version cannot be
+read is never replaced.
+
+- **Public installs** update automatically from the public marketplace.
+- **Beta installs** cannot self-download (the beta repo is private): they update
+  by rerunning the installer, or by pointing at an internal mirror with
+  `CLOVER_UPDATE_MANIFEST_URL` / `CLOVER_UPDATE_TREE_URL`.
+- Only the **binary and version manifest** are refreshed. The hook config is
+  path-rewritten at install time, so a new or changed trigger still needs a
+  rerun of the installer.
+- Cursor runs the same refresh at `sessionStart`, **on by default** on macOS and
+  Linux (`CLOVER_CURSOR_SELF_UPDATE=0` opts a machine or fleet out). Windows is
+  skipped before any download — a running executable cannot be renamed over
+  there — so Windows Cursor installs update via Cursor's own marketplace flow.
+
 ## Debugging
 
 `CLOVER_DEBUG=1` in `env.sh` for diagnostics, `CLOVER_KIRO_OBSERVE=1` to

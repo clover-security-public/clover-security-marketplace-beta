@@ -3,6 +3,17 @@
   "hooks": [
     {
       "name": "Clover Security",
+      "description": "Keep Clover up to date; Kiro has no plugin manager to do it.",
+      "trigger": "SessionStart",
+      "action": {
+        "type": "command",
+        "command": "bash .kiro/clover/scripts/run-hook.sh kiro-check-update"
+      },
+      "timeout": 60,
+      "enabled": true
+    },
+    {
+      "name": "Clover Security",
       "description": "Record the developer prompt for the security audit trail.",
       "trigger": "UserPromptSubmit",
       "action": {
