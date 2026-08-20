@@ -10,7 +10,7 @@
       "name": "clover",
       "source": "./",
       "description": "Ship secure code at agent speed. Clover silently reviews every plan, surfaces missing security requirements, and folds them into the work before a single line is written — no questions, no detours.",
-      "version": "0.1.97-beta.10"
+      "version": "0.1.97-beta.11"
     },
     {
       "name": "clover-for-security-teams",
