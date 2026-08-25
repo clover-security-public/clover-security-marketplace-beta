@@ -1,5 +1,6 @@
 {
   "name": "clover-for-security-teams",
+  "displayName": "Clover MCP - Security Teams",
   "version": "0.1.14-beta.2",
   "description": "Ask Clover about your application's security posture from inside your coding agent. Run security reviews, surface threats and required controls, and design securely, answered in natural language.",
   "author": {

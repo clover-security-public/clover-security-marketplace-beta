@@ -82,22 +82,23 @@ for name in $(jq -r '.plugins[].name' "$MANIFEST"); do
     fi
   done < <(jq -r '(.skills // []) | .[]' <<<"$entry")
 
-  # --- mcpServers: the entry repeats the plugin's own path, never a copy -------
-  # Claude's MCP resolution here is deliberately delicate (see the shared
-  # Claude/Cursor directory checks in validate.yml): the manifest-declared
-  # claude-mcp.json is what overrides the root .mcp.json down to a single
-  # registered server. The entry repeats that path rather than inlining the
-  # server, so the install screen gets a row without a third declaration
-  # entering the merge.
-  entry_mcp=$(jq -r '.mcpServers // ""' <<<"$entry")
-  manifest_mcp=$(jq -r '.mcpServers // ""' "$root/.claude-plugin/plugin.json")
-  if [ -n "$manifest_mcp" ] && [ "$entry_mcp" != "$manifest_mcp" ]; then
-    echo "ERROR: $name: entry mcpServers ($entry_mcp) must repeat the plugin manifest's path ($manifest_mcp)" >&2
-    FAILED=1
-  fi
-  if [ -n "$entry_mcp" ] && [ ! -f "$root/${entry_mcp#./}" ]; then
-    echo "ERROR: $name: entry mcpServers points at $entry_mcp, which does not exist under $root" >&2
-    FAILED=1
+  # --- mcpServers: declared inline, and identical to the plugin's own config ---
+  # The entry names the server so the install screen can print it, and the
+  # object has to equal claude-mcp.json's — the entry wins over both that file
+  # and the root .mcp.json, and those three carrying the same server key under
+  # the same URL is what keeps exactly one server registered (the interaction
+  # validate.yml's shared-directory checks pin down).
+  if [ -f "$root/claude-mcp.json" ]; then
+    declared_mcp=$(jq -S '.mcpServers // empty' <<<"$entry")
+    shipped_mcp=$(jq -S '.mcpServers' "$root/claude-mcp.json")
+    if [ -z "$declared_mcp" ]; then
+      echo "ERROR: $name: entry declares no \"mcpServers\" — mirror $root/claude-mcp.json into the entry" >&2
+      FAILED=1
+    elif [ "$declared_mcp" != "$shipped_mcp" ]; then
+      echo "ERROR: $name: entry mcpServers differ from $root/claude-mcp.json — the entry wins at runtime" >&2
+      diff <(echo "$shipped_mcp") <(echo "$declared_mcp") >&2 || true
+      FAILED=1
+    fi
   fi
 
   echo "OK: $name — metadata complete, hooks match $hooks_file"

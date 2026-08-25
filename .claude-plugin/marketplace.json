@@ -74,15 +74,69 @@
     },
     {
       "name": "clover-for-security-teams",
+      "displayName": "Clover MCP - Security Teams",
       "source": "./clover-for-security-teams",
       "description": "Ask Clover about your application's security posture from inside your coding agent. Run security reviews, surface threats and required controls, and design securely, answered in natural language.",
-      "version": "0.1.14-beta.2"
+      "category": "security",
+      "version": "0.1.14-beta.2",
+      "homepage": "https://github.com/clover-security-public/agentic-security-marketplace#readme",
+      "hooks": {
+        "SessionStart": [
+          {
+            "hooks": [
+              {
+                "type": "command",
+                "command": "bash ${CLAUDE_PLUGIN_ROOT}/scripts/check-update.sh",
+                "async": true,
+                "timeout": 30
+              }
+            ]
+          }
+        ]
+      },
+      "skills": [
+        "./skills/ask-clover"
+      ],
+      "mcpServers": {
+        "clover-for-security-teams": {
+          "type": "http",
+          "url": "${user_config.streaming_url}/streaming/security-team/mcp",
+          "timeout": 800000
+        }
+      }
     },
     {
       "name": "clover-for-developers",
+      "displayName": "Clover MCP - Developers",
       "source": "./clover-for-developers",
       "description": "Clover's security assistant for developers. Kick off a security/design review on the change you are working on, get security feedback on a design review (by its link), and read back the reviews you have access to — answered in natural language.",
-      "version": "0.1.4-beta.2"
+      "category": "security",
+      "version": "0.1.4-beta.2",
+      "homepage": "https://github.com/clover-security-public/agentic-security-marketplace#readme",
+      "hooks": {
+        "SessionStart": [
+          {
+            "hooks": [
+              {
+                "type": "command",
+                "command": "bash ${CLAUDE_PLUGIN_ROOT}/scripts/check-update.sh",
+                "async": true,
+                "timeout": 30
+              }
+            ]
+          }
+        ]
+      },
+      "skills": [
+        "./skills/ask-clover-developer"
+      ],
+      "mcpServers": {
+        "clover-for-developers": {
+          "type": "http",
+          "url": "${user_config.streaming_url}/streaming/developer/mcp",
+          "timeout": 800000
+        }
+      }
     }
   ]
 }
