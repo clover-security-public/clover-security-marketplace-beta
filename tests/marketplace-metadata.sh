@@ -46,13 +46,14 @@ for name in $(jq -r '.plugins[].name' "$MANIFEST"); do
     fi
   done
 
-  # USAGE.md documents what the clover plugin runs, so it is that plugin's
-  # homepage and only that one. The other two ship a skill and an MCP server and
-  # point at the marketplace README.
+  # The clover plugin's homepage is its product documentation; the two MCP
+  # plugins point at the marketplace README. USAGE.md still ships and is linked
+  # from that README — it documents the clover plugin's hooks, so it must not
+  # become another plugin's homepage.
   homepage=$(jq -r '.homepage // ""' <<<"$entry")
   case "$name:$homepage" in
-    clover:*/blob/main/USAGE.md) ;;
-    clover:*) echo "ERROR: clover's homepage must be USAGE.md (got $homepage)" >&2; FAILED=1 ;;
+    clover:https://docs.cloversec.io/*) ;;
+    clover:*) echo "ERROR: clover's homepage must be its docs.cloversec.io product page (got $homepage)" >&2; FAILED=1 ;;
     *:*USAGE.md) echo "ERROR: $name must not point its homepage at USAGE.md — it documents the clover plugin's hooks" >&2; FAILED=1 ;;
   esac
 
@@ -104,6 +105,6 @@ for name in $(jq -r '.plugins[].name' "$MANIFEST"); do
   echo "OK: $name — metadata complete, hooks match $hooks_file"
 done
 
-[ -f USAGE.md ] || { echo "ERROR: USAGE.md is missing — the clover entry's homepage points at it" >&2; FAILED=1; }
+[ -f USAGE.md ] || { echo "ERROR: USAGE.md is missing — README.md links it" >&2; FAILED=1; }
 
 exit "$FAILED"
