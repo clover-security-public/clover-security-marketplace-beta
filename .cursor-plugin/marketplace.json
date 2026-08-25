@@ -12,7 +12,8 @@
     {
       "name": "Clover",
       "source": "./",
-      "description": "Ship secure code at agent speed. Clover silently reviews every plan, surfaces missing security requirements, and folds them into the work before a single line is written — no questions, no detours."
+      "description": "Ship secure code at agent speed. Clover silently reviews every plan, surfaces missing security requirements, and folds them into the work before a single line is written — no questions, no detours.",
+      "displayName": "Clover Security - Kura"
     },
     {
       "name": "clover-for-security-teams",
