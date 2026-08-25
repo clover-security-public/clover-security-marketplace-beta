@@ -12,7 +12,7 @@
       "source": "./",
       "description": "Ship secure code at agent speed. Clover silently reviews every plan, surfaces missing security requirements, and folds them into the work before a single line is written — no questions, no detours.",
       "category": "security",
-      "version": "0.1.99-beta.1",
+      "version": "0.1.100-beta.1",
       "homepage": "https://github.com/clover-security-public/agentic-security-marketplace/blob/main/USAGE.md"
     },
     {
