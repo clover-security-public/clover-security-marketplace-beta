@@ -111,7 +111,7 @@
       "source": "./clover-for-developers",
       "description": "Clover's security assistant for developers. Kick off a security/design review on the change you are working on, get security feedback on a design review (by its link), and read back the reviews you have access to — answered in natural language.",
       "category": "security",
-      "version": "0.1.5-beta.1",
+      "version": "0.1.5-beta.2",
       "homepage": "https://github.com/clover-security-public/agentic-security-marketplace#readme",
       "hooks": {
         "SessionStart": [
