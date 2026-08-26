@@ -16,16 +16,27 @@ DATA="${CLOVER_DEVIN_DATA:-${HOME}/.devin/clover}"
 ENV_FILE="$DATA/env.sh"
 
 DEFAULT_SERVER_URL="https://api.cloversec.io"
-DEFAULT_AUTH_URL="https://clover.frontegg.com"
+# clover.frontegg.com is not a registered Frontegg vendor host: it answers
+# 404 "Failed to find vendor for host", so every auth fails. Anyone who
+# accepted the old default here wrote that dead host into env.sh, where it
+# also shadowed the binary's own correct fallback.
+DEFAULT_AUTH_URL="https://auth.cloversec.io"
 
 FROM_ENV=false
 [ "${1:-}" = "--from-env" ] && FROM_ENV=true
 
 if [ "$FROM_ENV" = false ]; then
-  if [ ! -t 0 ]; then
+  # Prompt on /dev/tty, not stdin: under `curl ... | bash` stdin is the script
+  # itself, so a plain `read` would consume the script's own remaining lines
+  # instead of the answer. The probe must actually OPEN /dev/tty, because in a
+  # headless shell the node exists and passes -r/-w but opening it fails with
+  # "Device not configured"; an unguarded redirect there would abort the whole
+  # run under `set -e`. Same pattern the Kiro installer uses.
+  if ! { exec 3<>/dev/tty; } 2>/dev/null; then
     echo "configure.sh needs a terminal; use --from-env with CLOVER_SECURITY_KURA_PLUGIN_* set." >&2
     exit 2
   fi
+
   # Reuse existing values as defaults so re-running only changes what you retype.
   # shellcheck disable=SC1090
   [ -f "$ENV_FILE" ] && . "$ENV_FILE" 2>/dev/null || true
@@ -36,11 +47,16 @@ if [ "$FROM_ENV" = false ]; then
   : "${CLOVER_SECURITY_KURA_PLUGIN_CLIENT_ID:=${CAS_CLOVER_PLUGIN_CLIENT_ID:-}}"
   : "${CLOVER_SECURITY_KURA_PLUGIN_CLIENT_SECRET:=${CAS_CLOVER_PLUGIN_CLIENT_SECRET:-}}"
 
-  read -r -p "Clover API URL [${CLOVER_SECURITY_KURA_PLUGIN_SERVER_URL:-$DEFAULT_SERVER_URL}]: " input_server
-  read -r -p "Auth URL [${CLOVER_SECURITY_KURA_PLUGIN_AUTH_URL:-$DEFAULT_AUTH_URL}]: " input_auth
-  read -r -p "Client ID [${CLOVER_SECURITY_KURA_PLUGIN_CLIENT_ID:+unchanged}]: " input_id
-  read -r -s -p "Client Secret [${CLOVER_SECURITY_KURA_PLUGIN_CLIENT_SECRET:+unchanged}]: " input_secret
-  echo
+  printf 'Clover API URL [%s]: ' "${CLOVER_SECURITY_KURA_PLUGIN_SERVER_URL:-$DEFAULT_SERVER_URL}" >&3
+  IFS= read -r input_server <&3 || input_server=""
+  printf 'Auth URL [%s]: ' "${CLOVER_SECURITY_KURA_PLUGIN_AUTH_URL:-$DEFAULT_AUTH_URL}" >&3
+  IFS= read -r input_auth <&3 || input_auth=""
+  printf 'Client ID%s: ' "${CLOVER_SECURITY_KURA_PLUGIN_CLIENT_ID:+ [unchanged]}" >&3
+  IFS= read -r input_id <&3 || input_id=""
+  printf 'Client Secret%s: ' "${CLOVER_SECURITY_KURA_PLUGIN_CLIENT_SECRET:+ [unchanged]}" >&3
+  IFS= read -rs input_secret <&3 || input_secret=""
+  printf '\n' >&3
+  exec 3>&- 2>/dev/null || true
 
   CLOVER_SECURITY_KURA_PLUGIN_SERVER_URL="${input_server:-${CLOVER_SECURITY_KURA_PLUGIN_SERVER_URL:-$DEFAULT_SERVER_URL}}"
   CLOVER_SECURITY_KURA_PLUGIN_AUTH_URL="${input_auth:-${CLOVER_SECURITY_KURA_PLUGIN_AUTH_URL:-$DEFAULT_AUTH_URL}}"
