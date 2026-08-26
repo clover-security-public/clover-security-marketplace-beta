@@ -3,13 +3,12 @@
 # the tree's checksum manifest. Mirrors claude/scripts/setup.sh — same integrity
 # gate, same channel model — with the paths Devin gives a plugin.
 #
-# Layout: Devin installs this directory (`<tree>/devin`) as the plugin, so the
-# shared binaries and their manifest sit one level up in `<tree>/bin`. Version
-# and channel come from the tree's own .claude-plugin/plugin.json, which is what
-# the assembly and carry-forward scripts stamp per channel — devin's
-# .devin-plugin/plugin.json version is display-only and is NOT stamped, so
-# reading it here would pin every channel to a stale snapshot and skip the
-# redeploy a new beta build needs.
+# Layout: the plugin is the marketplace tree root — a remote `#subdir` install
+# materialises only the subdir, with no bin/ and no channel manifest, so the
+# whole tree has to be the plugin. These scripts live at <tree>/devin/scripts,
+# so the shared binaries are at <tree>/bin. Version and channel come from the
+# tree's .claude-plugin/plugin.json, which the assembly and carry-forward
+# scripts stamp per channel.
 #
 # There is no polling auto-update: updates arrive by the marketplace re-syncing
 # the tree, exactly as on Claude. Polling public releases from a beta install
@@ -31,7 +30,6 @@ read_version() {
 
 TREE_MANIFEST="$TREE/.claude-plugin/plugin.json"
 FULL_VERSION="$(read_version "$TREE_MANIFEST")"
-[ -n "$FULL_VERSION" ] || FULL_VERSION="$(read_version "$ROOT/.devin-plugin/plugin.json")"
 case "$FULL_VERSION" in
   *-beta*)  CHANNEL="beta" ;;
   *-local*) CHANNEL="local" ;;
@@ -60,8 +58,7 @@ VERSION_FILE="$BINARY_DIR/.version"
 # and run-hook.sh points CLAUDE_PLUGIN_ROOT at DATA, so stage the tree's manifest
 # there — the channel-stamped one, so audit rows carry the build actually running.
 mkdir -p "$DATA/.claude-plugin" 2>/dev/null || true
-cp "$TREE_MANIFEST" "$DATA/.claude-plugin/plugin.json" 2>/dev/null \
-  || cp "$ROOT/.devin-plugin/plugin.json" "$DATA/.claude-plugin/plugin.json" 2>/dev/null || true
+cp "$TREE_MANIFEST" "$DATA/.claude-plugin/plugin.json" 2>/dev/null || true
 
 if [ -x "$BINARY" ] && [ -f "$VERSION_FILE" ] && [ "$(cat "$VERSION_FILE")" = "$FULL_VERSION" ]; then
   exit 0

@@ -23,7 +23,7 @@ mkdir -p \
   "$PLUGIN_ROOT/claude/scripts" \
   "$PLUGIN_ROOT/cursor/scripts" \
   "$PLUGIN_ROOT/devin/scripts" \
-  "$PLUGIN_ROOT/devin/.devin-plugin" \
+  "$PLUGIN_ROOT/.devin-plugin" \
   "$TEST_HOME"
 
 cat > "$MOCK_BIN/uname" <<'EOF'
@@ -47,7 +47,7 @@ chmod +x "$PLUGIN_ROOT/cursor/scripts/clover-hook.cmd"
 cp "$ROOT/devin/scripts/setup.sh" "$PLUGIN_ROOT/devin/scripts/"
 cp "$ROOT/devin/scripts/run-hook.sh" "$PLUGIN_ROOT/devin/scripts/"
 cp "$ROOT/devin/scripts/clover-hook.cmd" "$PLUGIN_ROOT/devin/scripts/"
-cp "$ROOT/devin/.devin-plugin/plugin.json" "$PLUGIN_ROOT/devin/.devin-plugin/"
+cp "$ROOT/.devin-plugin/plugin.json" "$PLUGIN_ROOT/.devin-plugin/"
 chmod +x "$PLUGIN_ROOT/devin/scripts/clover-hook.cmd"
 
 cat > "$PLUGIN_ROOT/bin/clover-hook-windows-amd64.exe" <<'EOF'
@@ -106,17 +106,17 @@ fi
 
 # The polyglot's first line must route POSIX to the existing scripts, and the
 # batch half must reach the per-arch Windows executable, never bash.
-if [ "$(jq '[.. | objects | .command? // empty] | map(select(length > 0)) | all(contains("/scripts/clover-hook.cmd\""))' "$ROOT/devin/hooks.json")" != "true" ]; then
+if [ "$(jq '[.. | objects | .command? // empty] | map(select(length > 0)) | all(contains("/scripts/clover-hook.cmd\""))' "$ROOT/hooks.json")" != "true" ]; then
   echo "ERROR: Devin hooks do not all dispatch through clover-hook.cmd" >&2
   exit 1
 fi
-if [ "$(jq '[.. | objects | .command? // empty] | map(select(test("bash|\\.sh"))) | length' "$ROOT/devin/hooks.json")" != "0" ]; then
+if [ "$(jq '[.. | objects | .command? // empty] | map(select(test("bash|\\.sh"))) | length' "$ROOT/hooks.json")" != "0" ]; then
   echo "ERROR: a Devin hook command names bash or a .sh, which spawns Git Bash on Windows" >&2
   exit 1
 fi
 # apply_patch writes files too; leaving it out of the matcher is a hole the
 # gate cannot see, because the hook simply never fires for those writes.
-if [ "$(jq -r '.PreToolUse[0].matcher' "$ROOT/devin/hooks.json")" != "write|edit|apply_patch" ]; then
+if [ "$(jq -r '.PreToolUse[0].matcher' "$ROOT/hooks.json")" != "write|edit|apply_patch" ]; then
   echo "ERROR: Devin plan gate does not cover write|edit|apply_patch" >&2
   exit 1
 fi
@@ -310,7 +310,7 @@ devin_cmd_prompt="$(
   printf '{"prompt":"hi","session_id":"s"}\n' | \
     PATH="$MOCK_BIN:$PATH" \
     HOME="$TEST_HOME" \
-    DEVIN_PLUGIN_ROOT="$PLUGIN_ROOT/devin" \
+    DEVIN_PLUGIN_ROOT="$PLUGIN_ROOT" \
     CLOVER_HOOK_BIN="$MOCK_BIN/fake-clover-hook" \
     TEST_UNAME_S="Darwin" \
     TEST_UNAME_M="arm64" \

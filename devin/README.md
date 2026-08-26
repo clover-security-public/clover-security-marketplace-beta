@@ -7,39 +7,56 @@ and `bin/` tree with the Claude, Cursor and Kiro surfaces.
 
 ## Install
 
-The plugin lives below the tree root, so the source carries a `#devin` suffix.
+The plugin is the **marketplace tree root**, not the `devin/` subdirectory:
 
 ```bash
-# beta (org ring)
-devin plugins install clover-security-public/clover-security-marketplace-beta#devin -y
+# beta (org ring) — private repo, so --local unless Devin Cloud has access
+devin plugins install --local clover-security-public/clover-security-marketplace-beta -y
 
 # public
-devin plugins install clover-security-public/agentic-security-marketplace#devin -y
+devin plugins install clover-security-public/agentic-security-marketplace -y
 
 devin plugins info clover     # Hooks must list 3 entries
 ```
 
-Without `#devin`, Devin resolves the tree root, finds the Claude
-`.claude-plugin/plugin.json`, and installs a plugin whose `Hooks` section is
-empty — it registers cleanly and does nothing.
-
 Then set credentials once (Clover Settings → API Tokens):
 
 ```bash
-"$(devin plugins info clover | sed -n 's/^  source: //p')/scripts/configure.sh"
+"$(devin plugins info clover | sed -n 's/^  source: //p')/devin/scripts/configure.sh"
 ```
 
 > **Workspace trust is required.** Devin ignores project config *and hooks* in an
 > untrusted workspace, silently. The first `devin` run in a repo prompts to trust
 > it — answer yes, or no hook ever fires. `/hooks` lists what actually loaded.
 
+### Why the tree root, and not `#devin`
+
+`devin plugins install owner/repo#subdir` materialises **only that subdirectory**
+in the plugin cache. A `#devin` install therefore has no `bin/` and no
+`.claude-plugin/plugin.json` beside it, so `setup.sh` finds no bundled binary and
+no channel — it deploys nothing, every hook fails open, and writes go ungated
+while `devin plugins info` still lists three healthy hooks. Making the tree root
+the plugin is what puts `bin/` and the channel manifest inside the install.
+
+`marketplace/.devin-plugin/plugin.json` and `marketplace/hooks.json` are that
+root plugin. There is deliberately no manifest under `devin/`, so a `#devin`
+install fails outright instead of silently installing a gate that never fires.
+
+### `--local` and Devin Cloud
+
+The beta marketplace is a **private** repo, and Devin Cloud clones plugin sources
+itself, so a plain install fails with *"accessible locally but not from Devin
+Cloud"*. `--local` installs on this machine only, which is what a beta test wants.
+To cover cloud sessions and other devices, grant Devin's GitHub app read access
+to the repo, then install without `--local`.
+
 ### Local validation
 
 `scripts/local-install.sh` assembles the `clover-local` channel from the working
-tree; install the Devin surface from it with a local path:
+tree; install the Devin plugin from its root:
 
 ```bash
-devin plugins install --local <assembled-tree>/devin -y
+devin plugins install --local ~/.clover/local-marketplace -y
 ```
 
 A local-path install symlinks to the source, so edits apply on the next session.

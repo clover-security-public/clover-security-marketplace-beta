@@ -108,12 +108,9 @@ fi
 cwd="${DEVIN_PROJECT_DIR:-$(printf '%s' "$IN" | jq -r '.cwd // empty' 2>/dev/null)}"
 session="$(printf '%s' "$IN" | jq -r '.session_id // .conversation_id // empty' 2>/dev/null)"
 # Prefer the channel-stamped manifest setup.sh stages in the data dir, then the
-# tree's own. devin/.devin-plugin/plugin.json is a display-only snapshot that CI
-# never stamps, so reading it first would tag every audit row with a version
-# that no channel actually shipped.
+# tree's own — both carry the version the running channel actually shipped.
 AGENT_VERSION="$(jq -r '.version // empty' "$DATA/.claude-plugin/plugin.json" 2>/dev/null)"
 [ -n "$AGENT_VERSION" ] || AGENT_VERSION="$(jq -r '.version // empty' "$ROOT/../.claude-plugin/plugin.json" 2>/dev/null)"
-[ -n "$AGENT_VERSION" ] || AGENT_VERSION="$(jq -r '.version // empty' "$ROOT/.devin-plugin/plugin.json" 2>/dev/null)"
 
 GIT_BRANCH=""; GIT_REPO=""; GIT_URL=""
 if [ -n "$cwd" ] && [ -d "$cwd" ]; then

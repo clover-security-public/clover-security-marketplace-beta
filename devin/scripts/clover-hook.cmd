@@ -16,10 +16,10 @@ rem payload goes straight to the bundled executable, which speaks Devin's
 rem protocol natively via its devin-* subcommands. Devin pipes the payload in
 rem on stdin; cmd hands its stdin to the child unchanged.
 
-rem Devin sets DEVIN_PLUGIN_ROOT to the plugin directory (<tree>\devin), so the
-rem shared bin\ is one level up. %~dp0..\.. is the same place, script-relative,
-rem for the case where the variable is absent.
-set "ROOT=%DEVIN_PLUGIN_ROOT%\.."
+rem The plugin IS the tree root (a remote subdir install materialises only the
+rem subdir, with no bin\), so DEVIN_PLUGIN_ROOT already points at the tree.
+rem %~dp0..\.. is the same place, script-relative, when the variable is absent.
+set "ROOT=%DEVIN_PLUGIN_ROOT%"
 if not defined DEVIN_PLUGIN_ROOT set "ROOT=%~dp0..\.."
 
 set "ARCH=amd64"
