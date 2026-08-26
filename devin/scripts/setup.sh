@@ -60,6 +60,12 @@ VERSION_FILE="$BINARY_DIR/.version"
 mkdir -p "$DATA/.claude-plugin" 2>/dev/null || true
 cp "$TREE_MANIFEST" "$DATA/.claude-plugin/plugin.json" 2>/dev/null || true
 
+# Devin has no equivalent of Claude's prompted userConfig (verified: it ignores
+# a userConfig/secrets block in the manifest entirely), so credentials are set
+# by a script. Copy it to a stable path so onboarding is one memorable command
+# rather than a path dug out of `devin plugins info`.
+cp "$ROOT/scripts/configure.sh" "$DATA/configure.sh" 2>/dev/null && chmod +x "$DATA/configure.sh" 2>/dev/null || true
+
 if [ -x "$BINARY" ] && [ -f "$VERSION_FILE" ] && [ "$(cat "$VERSION_FILE")" = "$FULL_VERSION" ]; then
   exit 0
 fi

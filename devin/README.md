@@ -22,8 +22,20 @@ devin plugins info clover     # Hooks must list 3 entries
 Then set credentials once (Clover Settings → API Tokens):
 
 ```bash
-"$(devin plugins info clover | sed -n 's/^  source: //p')/devin/scripts/configure.sh"
+~/.devin/clover/configure.sh
 ```
+
+Devin has **no equivalent of Claude's prompted `userConfig`** — verified: it
+ignores a `userConfig`/`secrets` block in the manifest entirely, and surfaces no
+config UI. So credentials are set by a script, and `setup.sh` copies it to that
+stable path on first session so the command never depends on where the plugin
+was installed.
+
+Until it is configured, Clover reviews nothing. Devin surfaces neither hook
+stderr nor an install prompt, so that state would otherwise be invisible: the
+first prompt of each session injects a `UserPromptSubmit` `additionalContext`
+notice telling the user to run the command above — once per session, not per
+prompt.
 
 > **Workspace trust is required.** Devin ignores project config *and hooks* in an
 > untrusted workspace, silently. The first `devin` run in a repo prompts to trust

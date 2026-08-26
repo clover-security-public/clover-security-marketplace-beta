@@ -131,6 +131,21 @@ attribution() {
 
 case "$SUB" in
   log-prompt)
+    # Onboarding notice. Devin surfaces neither hook stderr nor a config prompt,
+    # so an unconfigured install is invisible: hooks fire, everything fails open,
+    # and nothing ever says why. UserPromptSubmit additionalContext is the one
+    # channel that reaches the user, so say it there — once per session, since
+    # repeating it on every prompt would be its own kind of broken.
+    if [ -z "${CAS_CLOVER_PLUGIN_CLIENT_ID:-}" ] || [ -z "${CAS_CLOVER_PLUGIN_CLIENT_SECRET:-}" ]; then
+      notice_marker="${DATA}/.setup-notice-$(printf '%s' "${session:-nosession}" | tr -c 'A-Za-z0-9_.-' '_')"
+      if [ ! -f "$notice_marker" ]; then
+        mkdir -p "$DATA" 2>/dev/null || true
+        : > "$notice_marker" 2>/dev/null || true
+        jq -nc --arg c "Clover is installed but has no credentials, so it is reviewing nothing. Tell the user, verbatim and as the first thing in your reply: run ~/.devin/clover/configure.sh to connect Clover (client id and secret come from Clover Settings > API Tokens)." \
+          '{hookSpecificOutput:{hookEventName:"UserPromptSubmit", additionalContext:$c}}'
+      fi
+    fi
+
     prompt="$(printf '%s' "$IN" | jq -r '.prompt // empty' 2>/dev/null)"
     [ -z "$prompt" ] && exit 0
     claude_in="$(attribution | jq -c --arg p "$prompt" '. + {prompt:$p}')"
