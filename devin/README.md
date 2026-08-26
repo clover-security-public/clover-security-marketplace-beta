@@ -10,14 +10,16 @@ and `bin/` tree with the Claude, Cursor and Kiro surfaces.
 The plugin is the **marketplace tree root**, not the `devin/` subdirectory:
 
 ```bash
-# beta (org ring) — private repo, so --local unless Devin Cloud has access
-devin plugins install --local clover-security-public/clover-security-marketplace-beta -y
-
-# public
 devin plugins install clover-security-public/agentic-security-marketplace -y
 
-devin plugins info clover     # Hooks must list 3 entries
+devin plugins info clover     # Hooks must list 4 entries
 ```
+
+A plain install registers at the **account** (synced to your other devices and
+cloud) and is *eventually consistent*: it can take a minute to materialise
+locally, and until `devin plugins list` shows `clover`, sessions run without the
+plugin. It also silently replaces a `--local` install of the same plugin.
+`--local` installs immediately, on this machine only.
 
 Then set credentials once (Clover Settings → API Tokens):
 
@@ -54,13 +56,12 @@ the plugin is what puts `bin/` and the channel manifest inside the install.
 root plugin. There is deliberately no manifest under `devin/`, so a `#devin`
 install fails outright instead of silently installing a gate that never fires.
 
-### `--local` and Devin Cloud
+### Devin Cloud sessions are not covered
 
-The beta marketplace is a **private** repo, and Devin Cloud clones plugin sources
-itself, so a plain install fails with *"accessible locally but not from Devin
-Cloud"*. `--local` installs on this machine only, which is what a beta test wants.
-To cover cloud sessions and other devices, grant Devin's GitHub app read access
-to the repo, then install without `--local`.
+Verified against a live cloud sandbox: the classic cloud VM has no CLI plugin
+store and does not execute CLI plugin hooks. Work done in app.devin.ai cloud
+sessions is therefore **not gated by this plugin** — coverage there comes from
+the Devin API integration (`IntegrationType.Devin`), not hooks.
 
 ### Local validation
 
@@ -72,6 +73,45 @@ devin plugins install --local ~/.clover/local-marketplace -y
 ```
 
 A local-path install symlinks to the source, so edits apply on the next session.
+
+## Org rollout (the primary path for teams)
+
+Individual `configure.sh` runs do not scale to a team. The rollout is two
+fleet-managed pieces, both using only mechanisms verified against the real CLI:
+
+**1. Install the plugin per developer** (their own machines):
+
+```bash
+devin plugins install clover-security-public/agentic-security-marketplace -y
+```
+
+**2. Distribute the credentials** as environment. The hooks read
+`CLOVER_SECURITY_KURA_PLUGIN_CLIENT_ID`, `CLOVER_SECURITY_KURA_PLUGIN_CLIENT_SECRET`,
+`CLOVER_SECURITY_KURA_PLUGIN_AUTH_URL`, `CLOVER_SECURITY_KURA_PLUGIN_SERVER_URL`
+from, in order:
+
+- **The environment of the process that launches `devin`** — verified: hooks
+  inherit the launcher's env. Fleet-manage it like any other machine env:
+  a managed shell-profile drop on macOS/Linux, user environment variables on
+  Windows (the Windows path reads process env directly and does not source any
+  file).
+- **`~/.devin/clover/env.sh` (mode 600), POSIX only** — verified: the shim
+  sources it when the env is empty. A one-file MDM/fleet drop per machine;
+  `configure.sh` writes exactly this file for the manual case.
+
+Use a per-team (or per-org) Clover API client, not a personal one, so rotation
+is one secret in one place.
+
+**What does NOT work** — all verified against Devin CLI 3000.6.2, so don't
+burn time on them: a `userConfig`/`secrets` block in the plugin manifest
+(ignored, no prompt), an `env` map on a hook entry (not injected), and an `env`
+block in `.devin/config.json` (not injected). Devin's org "managed plugins"
+scope exists in its config model but its admin-side setup is undocumented here —
+if Devin's admin console can push plugins org-wide, step 1 collapses into it;
+credentials still arrive per this section.
+
+`CLOVER_DEVIN_ROOT` relocates the adapter to a fixed path if an org prefers to
+lay the files down itself instead of using the plugin manager.
 
 ## How it maps to Devin
 
@@ -166,10 +206,9 @@ error. Verified live: the update completes from inside a running session — the
 hook binary runs from the data dir, so replacing the plugin cache never yanks
 the running executable.
 
-Unlike Claude — where the beta ring rides marketplace autoUpdate — **both
-public and beta self-update here**, because Devin has no marketplace autoUpdate;
-only the local channel (a symlinked working tree) is exempt. Manual refresh is
-still `devin plugins update clover`.
+Devin has no marketplace autoUpdate, so the plugin's own check is the only
+automatic path; the local channel (a symlinked working tree) is exempt. Manual
+refresh is still `devin plugins update clover`.
 
 ## Binary and channels
 
@@ -183,20 +222,11 @@ Version and channel come from the tree's `.claude-plugin/plugin.json`, which the
 assembly and carry-forward scripts stamp per channel.
 `devin/.devin-plugin/plugin.json` carries a **display-only** version that CI does
 not stamp; reading it for the deploy decision would pin every channel to a stale
-snapshot and skip the redeploy a new beta build needs.
+snapshot and skip the redeploy a new build needs.
 
 `setup.sh` also refuses a binary lacking the **`should-review-plan`** subcommand:
 an older build exits `Unknown command`, the shim fails open on every write, and
 the gate is silently absent rather than visibly broken.
-
-## Delivery
-
-This directory is the source of truth. Merging to `main` here publishes it to the
-beta ring automatically (`.github/workflows/build-and-publish.yml`); the public
-marketplace moves only via the manual promote. `devin/**` needs no mapping entry:
-`plugins-touched-by.sh` routes anything unrecognised to `clover`, and
-`scope-delivery-to-plugins.sh` gives `clover` ownership of everything outside the
-two secondary plugin directories.
 
 ## Fail-open
 

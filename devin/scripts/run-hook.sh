@@ -96,10 +96,17 @@ if ! command -v jq >/dev/null 2>&1 || [ ! -x "$BIN" ]; then
   exit 0
 fi
 
-# Credentials. Devin has no plugin-option prompt, so creds come from the env
-# (set in .devin/config.json `env`, ~/.config/devin/config.json, or org settings)
-# as CAS_CLOVER_PLUGIN_*, or from an operator-dropped ${DATA}/env.sh.
-if [ -z "${CAS_CLOVER_PLUGIN_CLIENT_ID:-}" ] && [ -f "$DATA/env.sh" ]; then
+# Credentials. Devin has no plugin-option prompt, so creds come from the
+# launcher's process environment as CLOVER_SECURITY_KURA_PLUGIN_* (verified:
+# hooks inherit it; config-file `env` blocks and hook-entry `env` maps are NOT
+# injected), or from ${DATA}/env.sh — written by configure.sh or dropped by
+# fleet tooling. The binary still accepts the legacy CAS_CLOVER_PLUGIN_* names,
+# so the guards here check both.
+clover_creds_present() {
+  { [ -n "${CLOVER_SECURITY_KURA_PLUGIN_CLIENT_ID:-}" ] || [ -n "${CAS_CLOVER_PLUGIN_CLIENT_ID:-}" ]; } \
+    && { [ -n "${CLOVER_SECURITY_KURA_PLUGIN_CLIENT_SECRET:-}" ] || [ -n "${CAS_CLOVER_PLUGIN_CLIENT_SECRET:-}" ]; }
+}
+if ! clover_creds_present && [ -f "$DATA/env.sh" ]; then
   # shellcheck disable=SC1091
   . "$DATA/env.sh" 2>/dev/null || true
 fi
@@ -136,7 +143,7 @@ case "$SUB" in
     # and nothing ever says why. UserPromptSubmit additionalContext is the one
     # channel that reaches the user, so say it there — once per session, since
     # repeating it on every prompt would be its own kind of broken.
-    if [ -z "${CAS_CLOVER_PLUGIN_CLIENT_ID:-}" ] || [ -z "${CAS_CLOVER_PLUGIN_CLIENT_SECRET:-}" ]; then
+    if ! clover_creds_present; then
       notice_marker="${DATA}/.setup-notice-$(printf '%s' "${session:-nosession}" | tr -c 'A-Za-z0-9_.-' '_')"
       if [ ! -f "$notice_marker" ]; then
         mkdir -p "$DATA" 2>/dev/null || true

@@ -254,6 +254,9 @@ jobs:
       - name: Test Windows runtime support
         run: bash tests/windows-support.sh
 
+      - name: Test Cursor binary auto-update
+        run: bash tests/cursor-auto-update.sh
+
       - name: Shellcheck
         run: |
           sudo apt-get install -y shellcheck > /dev/null 2>&1
