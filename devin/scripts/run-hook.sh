@@ -154,6 +154,13 @@ case "$SUB" in
     exit 0
     ;;
 
+  check-update)
+    # Self-update; the binary owns the TTL and the channel decision. Stdout is
+    # suppressed so Devin never parses update chatter as a hook decision.
+    printf '%s' "$IN" | "$BIN" devin-check-update >/dev/null 2>&1 || true
+    exit 0
+    ;;
+
   review-write)
     # tool_input is forwarded verbatim: Devin's write/edit carry the same
     # file_path / content / old_string / new_string / edits names the binary's

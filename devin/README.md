@@ -158,14 +158,18 @@ every prompt. ARM64 falls back to the amd64 build, which Windows emulates.
 
 ## Updates
 
-Devin has no equivalent of Claude's `check-update` hook, and none is wired here
-on purpose: `devin plugins update clover` is the documented path, and running it
-from inside a hook would mutate the plugin directory that the running hooks are
-symlinked into. Refresh with:
+The plugin self-updates, like the Claude surface: a second `SessionStart` hook
+(`check-update` → `devin-check-update`) compares the installed version against
+the channel's marketplace manifest and, when behind, runs
+`devin plugins update clover`. TTL-gated to once per 6h; fails open on any
+error. Verified live: the update completes from inside a running session — the
+hook binary runs from the data dir, so replacing the plugin cache never yanks
+the running executable.
 
-```bash
-devin plugins update clover
-```
+Unlike Claude — where the beta ring rides marketplace autoUpdate — **both
+public and beta self-update here**, because Devin has no marketplace autoUpdate;
+only the local channel (a symlinked working tree) is exempt. Manual refresh is
+still `devin plugins update clover`.
 
 ## Binary and channels
 

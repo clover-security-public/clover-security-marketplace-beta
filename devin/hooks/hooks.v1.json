@@ -5,6 +5,11 @@
         {
           "type": "command",
           "command": "\"${CLOVER_DEVIN_ROOT:-${DEVIN_PROJECT_DIR}/.devin/clover}/scripts/clover-hook.cmd\" setup"
+        },
+        {
+          "type": "command",
+          "command": "\"${CLOVER_DEVIN_ROOT:-${DEVIN_PROJECT_DIR}/.devin/clover}/scripts/clover-hook.cmd\" check-update",
+          "timeout": 90
         }
       ]
     }
