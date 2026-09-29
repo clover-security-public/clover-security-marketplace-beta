@@ -10,7 +10,7 @@
   },
   "homepage": "https://docs.cloversec.io/product-guides/kura-securing-agentic-development/about-kura",
   "repository": "https://github.com/clover-security-public/agentic-security-marketplace",
-  "license": "MIT",
+  "license": "AGPL-3.0-only",
   "keywords": [
     "security",
     "appsec",
