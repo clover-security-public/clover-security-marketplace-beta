@@ -126,6 +126,11 @@ rm -f "$CHECKSUMS"
 if [ -n "$TARGET" ] && ! grep -qs 'clover/env.sh' "$TARGET/.gitignore" 2>/dev/null; then
   printf '\n# Clover credentials - never commit\n.kiro/clover/env.sh\n' >> "$TARGET/.gitignore"
 fi
+# A Windows self-update leaves the old binary beside the new one until a later
+# hook can delete it; a hook killed mid-update can leave a temp file.
+if [ -n "$TARGET" ] && ! grep -qs 'clover-update' "$TARGET/.gitignore" 2>/dev/null; then
+  printf '\n# Clover self-update leftovers\n.kiro/clover/bin/.clover-update-*\n.kiro/clover/bin/*.replaced-*\n' >> "$TARGET/.gitignore"
+fi
 
 # Credentials: prompt on a terminal, otherwise leave a template. /dev/tty is
 # read directly because under `curl | bash` stdin is the script itself. The

@@ -290,10 +290,11 @@ read is never replaced.
 - Only the **binary and version manifest** are refreshed. The hook config is
   path-rewritten at install time, so a new or changed trigger still needs a
   rerun of the installer.
-- Cursor runs the same refresh at `sessionStart`, **on by default** on macOS and
-  Linux (`CLOVER_CURSOR_SELF_UPDATE=0` opts a machine or fleet out). Windows is
-  skipped before any download — a running executable cannot be renamed over
-  there — so Windows Cursor installs update via Cursor's own marketplace flow.
+- Cursor runs the same refresh at `sessionStart`, **on by default**
+  (`CLOVER_CURSOR_SELF_UPDATE=0` opts a machine or fleet out). On Windows, which
+  will not rename over a running executable, the live binary is renamed aside
+  (`<binary>.replaced-<pid>-<nanos>`) and the new one moved into its place; the
+  aside copy is deleted by a later session once nothing runs it.
 
 ## Troubleshooting
 
