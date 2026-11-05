@@ -108,6 +108,23 @@ cwd="$(printf '%s' "$IN" | jq -r '(.workspace_roots[0]) // .cwd // empty' 2>/dev
 PLUG_DIR="${CURSOR_PLUGIN_ROOT:-$(cd "$(dirname "$0")/../.." && pwd)}"
 AGENT_VERSION="$(jq -r '.version // empty' "$PLUG_DIR/.cursor-plugin/plugin.json" 2>/dev/null)"
 
+# What Cursor reports about itself, forwarded under the binary's shim field
+# names: its version, the model, the signed-in account (which outranks the
+# locally read emails) and every workspace root (tried for git metadata when the
+# first is not a repository). Absent fields are dropped, never sent empty, and
+# so is a value of an unexpected type: these fields are informational, and one
+# the binary cannot read must not cost the request anything else.
+REPORT="$(printf '%s' "$IN" | jq -c --arg remote "${CURSOR_CODE_REMOTE:-}" '
+  def text: if type == "string" then . else null end;
+  {
+    codingAgentVersion: ((.cursor_version | text) // env.CURSOR_VERSION // null),
+    model: (.model | text),
+    userEmail: (.user_email | text),
+    workspaceRoots: (.workspace_roots | if type == "array" then map(strings) else null end),
+    remote: ($remote != "" and $remote != "false" and $remote != "0")
+  } | with_entries(select(.value != null and .value != "" and .value != false))' 2>/dev/null)"
+[ -n "$REPORT" ] || REPORT='{}'
+
 # Convert a raw .plan.md serialization into the plan as the user reads it:
 # strip Cursor's YAML frontmatter (todo machine-state), lift name + overview,
 # keep the markdown body. Result in $PLAN_TEXT. No frontmatter -> verbatim.
@@ -146,8 +163,8 @@ case "$SUB" in
       [ .tool_input.name, .tool_input.overview, (.tool_input.plan // .tool_input.body // "") ]
       | map(select(. != null and . != "")) | join("\n\n")' 2>/dev/null)"
     claude_in="$(jq -nc --arg s "$session" --arg c "$cwd" --arg p "$plan" \
-      --arg an "$AGENT_NAME" --arg ca "$CODING_AGENT" --arg av "$AGENT_VERSION" \
-      '{session_id:$s, cwd:$c, agentName:$an, codingAgent:$ca, agentVersion:$av, tool_input:{plan:$p, planFilePath:""}}')"
+      --arg an "$AGENT_NAME" --arg ca "$CODING_AGENT" --arg av "$AGENT_VERSION" --argjson rp "$REPORT" \
+      '{session_id:$s, cwd:$c, agentName:$an, codingAgent:$ca, agentVersion:$av, tool_input:{plan:$p, planFilePath:""}} + $rp')"
     out="$(printf '%s' "$claude_in" | "$BIN" review-plan)"
     decision="$(printf '%s' "$out" | jq -r '.hookSpecificOutput.permissionDecision // "allow"' 2>/dev/null)"
     reason="$(printf '%s' "$out" | jq -r '.hookSpecificOutput.permissionDecisionReason // empty' 2>/dev/null)"
@@ -215,8 +232,8 @@ case "$SUB" in
           2>/dev/null || true)"
       fi
       claude_in="$(jq -nc --arg s "$session" --arg c "$cwd" --arg p "$plan" --arg f "$f" \
-        --arg an "$AGENT_NAME" --arg ca "$CODING_AGENT" --arg av "$AGENT_VERSION" \
-        '{session_id:$s, cwd:$c, agentName:$an, codingAgent:$ca, agentVersion:$av, tool_input:{plan:$p, planFilePath:$f}}')"
+        --arg an "$AGENT_NAME" --arg ca "$CODING_AGENT" --arg av "$AGENT_VERSION" --argjson rp "$REPORT" \
+        '{session_id:$s, cwd:$c, agentName:$an, codingAgent:$ca, agentVersion:$av, tool_input:{plan:$p, planFilePath:$f}} + $rp')"
       out="$(printf '%s' "$claude_in" | "$BIN" review-plan)"
       decision="$(printf '%s' "$out" | jq -r '.hookSpecificOutput.permissionDecision // "allow"' 2>/dev/null)"
       reason="$(printf '%s' "$out" | jq -r '.hookSpecificOutput.permissionDecisionReason // empty' 2>/dev/null)"
@@ -268,8 +285,8 @@ $deny_reasons"
       "$CLOVER_FOLLOWUP_PREFIX"*) continue_ok; exit 0 ;;
     esac
     claude_in="$(jq -nc --arg s "$session" --arg c "$cwd" --arg p "$prompt" \
-      --arg an "$AGENT_NAME" --arg ca "$CODING_AGENT" --arg av "$AGENT_VERSION" \
-      '{session_id:$s, cwd:$c, agentName:$an, codingAgent:$ca, agentVersion:$av, prompt:$p}')"
+      --arg an "$AGENT_NAME" --arg ca "$CODING_AGENT" --arg av "$AGENT_VERSION" --argjson rp "$REPORT" \
+      '{session_id:$s, cwd:$c, agentName:$an, codingAgent:$ca, agentVersion:$av, prompt:$p} + $rp')"
     # Fire-and-forget audit; binary stdout suppressed so our protocol JSON
     # below is the only thing Cursor parses. stderr passes through to Cursor.
     printf '%s' "$claude_in" | "$BIN" log-prompt >/dev/null || true
