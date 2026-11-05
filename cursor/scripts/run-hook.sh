@@ -12,7 +12,9 @@
 #
 # Subcommands (set in hooks.json):
 #   log-prompt        beforeSubmitPrompt -> audit prompt + drop generation marker
-#   review-plan-stop  stop          -> review plan files written this generation
+#   review-plan-stop  stop          -> review plan files this chat wrote this generation
+#   track-plan-write  afterFileEdit + subagentStart/subagentStop -> record which
+#                     chat wrote which plan (binary-only; prints nothing)
 #   review-plan       preToolUse (tool_name=="CreatePlan"; Cursor never emits it
 #                     for CreatePlan — kept for if/when that changes)
 #
@@ -58,6 +60,14 @@ if [ -z "$BIN" ] || [ ! -x "$BIN" ]; then
   esac
   case "$ARCH" in x86_64) ARCH=amd64 ;; aarch64|arm64) ARCH=arm64 ;; esac
   BIN="${ROOT}/bin/clover-hook-${OS}-${ARCH}${EXE_SUFFIX}"
+fi
+
+# track-plan-write fires on every file write, so it goes straight to the binary
+# ahead of the jq check and credential scan below: recording a path needs
+# neither, and a file-write hook must print nothing.
+if [ "$SUB" = "track-plan-write" ]; then
+  [ -x "$BIN" ] && printf '%s' "$IN" | "$BIN" cursor-track-plan-write >/dev/null 2>&1
+  exit 0
 fi
 
 if ! command -v jq >/dev/null 2>&1 || [ ! -x "$BIN" ]; then
@@ -181,22 +191,14 @@ case "$SUB" in
     # a deny comes back as followup_message so the agent revises the plan.
     # Note: stop has no composer_mode field — "new plan file since the marker"
     # is the plan-mode signal.
-    gen="$(printf '%s' "$IN" | jq -r '.generation_id // empty' 2>/dev/null)"
+    #
+    # Which plans this stop owns is decided by the binary, the same code the
+    # Windows path runs: the plans this chat (or its subagents) wrote since
+    # this turn's generation marker — workspace *.plan.md included — plus
+    # ~/.cursor/plans files no other chat wrote (CreatePlan has no hookable
+    # event). It consumes the marker, and prints one absolute path per line.
     loops="$(printf '%s' "$IN" | jq -r '.loop_count // 0' 2>/dev/null)"
-    MARKS="${CLOVER_STATE_DIR:-$HOME/.cursor/clover}/generation-marks"
-    PLANS="${CLOVER_PLANS_DIR:-$HOME/.cursor/plans}"
-    marker="$MARKS/${gen:-none}"
-    if [ -n "$gen" ] && [ -f "$marker" ]; then
-      new_plans="$(find "$PLANS" -maxdepth 1 -name '*.plan.md' -newer "$marker" 2>/dev/null)"
-    elif [ "${loops:-0}" -gt 0 ] 2>/dev/null; then
-      # Followup-loop pass: no beforeSubmitPrompt fired, so no marker. Review
-      # recently-touched plans (the agent's revision) within a tight window.
-      new_plans="$(find "$PLANS" -maxdepth 1 -name '*.plan.md' -mmin -5 2>/dev/null)"
-    else
-      # No marker and not a followup loop: nothing attributable to review.
-      new_plans=""
-    fi
-    rm -f "$marker" 2>/dev/null || true
+    new_plans="$(printf '%s' "$IN" | "$BIN" cursor-stop-plans 2>/dev/null)"
     [ -z "$new_plans" ] && exit 0
     if [ "${loops:-0}" -ge 3 ] 2>/dev/null; then
       # Loop guard: stop re-reviewing after repeated denies (belt and braces
@@ -260,12 +262,10 @@ $deny_reasons"
 
   log-prompt)
     # Drop a per-generation timestamp marker so review-plan-stop can identify
-    # plan files written during this generation.
-    gen="$(printf '%s' "$IN" | jq -r '.generation_id // .session_id // empty' 2>/dev/null)"
-    MARKS="${CLOVER_STATE_DIR:-$HOME/.cursor/clover}/generation-marks"
-    mkdir -p "$MARKS" 2>/dev/null || true
-    if [ -n "$gen" ]; then : > "$MARKS/$gen" 2>/dev/null || true; fi
-    find "$MARKS" -type f -mmin +240 -delete 2>/dev/null || true
+    # plan files written during this generation, and note this conversation
+    # as a chat. The binary writes both, so the state has the layout its
+    # cursor-stop-plans (and the Windows path) reads.
+    printf '%s' "$IN" | "$BIN" cursor-start-turn >/dev/null 2>&1 || true
     prompt="$(printf '%s' "$IN" | jq -r '.prompt // empty' 2>/dev/null)"
     # Clover's own followup re-entering as a prompt: skip the server audit
     # (it is our deny reason, not user input). Primary check — the prompt
