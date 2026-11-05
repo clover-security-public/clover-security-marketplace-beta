@@ -65,7 +65,7 @@ cp "${ROOT}/.cursor-plugin/plugin.json" "$DATA/.claude-plugin/plugin.json" 2>/de
 # Best-effort and bounded by the binary's own timeouts (10s for the manifest,
 # 60s per download): any failure leaves the installed binary in place, and both
 # streams are discarded so only the env contract below reaches Cursor.
-# CLOVER_CURSOR_SELF_UPDATE=0 opts a machine out.
+# CLOVER_CURSOR_SELF_UPDATE=0 opts a machine out; cursor-check-update checks it.
 if [ -x "$BIN" ]; then
   CURSOR_PLUGIN_ROOT="$ROOT" \
   CLAUDE_PLUGIN_ROOT="$DATA" \
