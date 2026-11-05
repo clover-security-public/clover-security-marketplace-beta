@@ -13,7 +13,7 @@ jobs:
       - name: Validate plugin manifests
         run: |
           for manifest in .claude-plugin/plugin.json .cursor-plugin/plugin.json \
-                          .codex-plugin/plugin.json .plugin/plugin.json \
+                          .codex-plugin/plugin.json .plugin/plugin.json kiro/plugin.json \
                           clover-for-security-teams/.claude-plugin/plugin.json \
                           clover-for-security-teams/.cursor-plugin/plugin.json \
                           clover-for-developers/.claude-plugin/plugin.json \
@@ -43,12 +43,15 @@ jobs:
           CODEX_PLUGIN=$(jq -r '.version' .codex-plugin/plugin.json)
           COPILOT_PLUGIN=$(jq -r '.version' .plugin/plugin.json)
           COPILOT_MARKET=$(jq -r '.plugins[0].version' .plugin/marketplace.json)
-          echo "claude/plugin=$CLAUDE_PLUGIN claude/marketplace=$CLAUDE_MARKET cursor/plugin=$CURSOR_PLUGIN cursor/marketplace=$CURSOR_MARKET codex/plugin=$CODEX_PLUGIN copilot/plugin=$COPILOT_PLUGIN copilot/marketplace=$COPILOT_MARKET"
+          KIRO_PLUGIN=$(jq -r '.version' kiro/plugin.json)
+          echo "claude/plugin=$CLAUDE_PLUGIN claude/marketplace=$CLAUDE_MARKET cursor/plugin=$CURSOR_PLUGIN cursor/marketplace=$CURSOR_MARKET codex/plugin=$CODEX_PLUGIN copilot/plugin=$COPILOT_PLUGIN copilot/marketplace=$COPILOT_MARKET kiro/plugin=$KIRO_PLUGIN"
           if [ "$CLAUDE_PLUGIN" = "$CLAUDE_MARKET" ] && [ "$CLAUDE_PLUGIN" = "$CURSOR_PLUGIN" ] && [ "$CLAUDE_PLUGIN" = "$CURSOR_MARKET" ] && [ "$CLAUDE_PLUGIN" = "$CODEX_PLUGIN" ] \
-             && [ "$CLAUDE_PLUGIN" = "$COPILOT_PLUGIN" ] && [ "$CLAUDE_PLUGIN" = "$COPILOT_MARKET" ]; then
+             && [ "$CLAUDE_PLUGIN" = "$COPILOT_PLUGIN" ] && [ "$CLAUDE_PLUGIN" = "$COPILOT_MARKET" ] && [ "$CLAUDE_PLUGIN" = "$KIRO_PLUGIN" ]; then
             echo "Versions in sync: $CLAUDE_PLUGIN"
           else
-            echo "ERROR: plugin/marketplace versions are out of sync — all seven manifests must match" >&2
+            # .devin-plugin/plugin.json is deliberately absent: its version is
+            # display-only and unstamped (see devin/README.md).
+            echo "ERROR: plugin/marketplace versions are out of sync — all eight manifests must match" >&2
             exit 1
           fi
 

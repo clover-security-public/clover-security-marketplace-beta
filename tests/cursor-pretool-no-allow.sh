@@ -34,6 +34,15 @@ mkdir -p "$TEST_HOME" "$EMPTY_ROOT"
 cat > "$MOCK_HOOK" <<'EOF'
 #!/usr/bin/env bash
 cat >/dev/null
+# MOCK_PLANS: the plans cursor-stop-plans names; each review records the
+# deadline it inherited.
+if [ -n "${MOCK_PLANS:-}" ]; then
+  case "$1" in
+    cursor-stop-plans) printf '%s\n' "$MOCK_PLANS" ;;
+    review-plan) printf '%s\n' "${CLOVER_HOOK_DEADLINE:-}" >> "$MOCK_DEADLINES" ;;
+  esac
+  exit 0
+fi
 case "${MOCK_MODE:-}" in
   approve-silent) ;;
   approve-explicit) printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"allow"}}\n' ;;
@@ -134,6 +143,24 @@ run_shim '{"prompt":"hi","generation_id":"g2"}' log-prompt CLOVER_HOOK_BIN="$TES
 
 run_shim '{"generation_id":"g3"}' review-plan-stop CLOVER_HOOK_BIN="$TEST_DIR/no-such-binary"
 assert_silent "review-plan-stop with no binary installed"
+
+# --- a stop's plans share one hook deadline ---------------------------------
+# Each plan is its own binary process; without a shared deadline each would
+# start a fresh budget and the stop could outlive its 300s timeout.
+printf '# A\n' > "$TEST_DIR/a.plan.md"
+printf '# B\n' > "$TEST_DIR/b.plan.md"
+DEADLINES="$TEST_DIR/deadlines"
+before="$(date +%s)"
+run_shim '{"conversation_id":"c4","generation_id":"g4"}' review-plan-stop CLOVER_HOOK_BIN="$MOCK_HOOK" \
+  MOCK_PLANS="$TEST_DIR/a.plan.md
+$TEST_DIR/b.plan.md" MOCK_DEADLINES="$DEADLINES"
+after="$(date +%s)"
+assert_silent "review-plan-stop with two approved plans"
+deadlines="$(sort -u "$DEADLINES" 2>/dev/null)"
+if [ "$(wc -l < "$DEADLINES" 2>/dev/null | tr -d ' ')" != 2 ] || [ "$(printf '%s\n' "$deadlines" | wc -l | tr -d ' ')" != 1 ] \
+   || ! [ "$deadlines" -ge $((before + 270)) ] 2>/dev/null || ! [ "$deadlines" -le $((after + 270)) ] 2>/dev/null; then
+  fail "review-plan-stop — want both plans reviewed under one deadline 270s from the stop's start, got '$(cat "$DEADLINES" 2>/dev/null)'"
+fi
 
 # --- no Cursor entry point can emit an allow --------------------------------
 # Catches a path the runs above do not reach, in either launcher. Comment lines

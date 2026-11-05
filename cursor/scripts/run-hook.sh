@@ -171,6 +171,8 @@ case "$SUB" in
     fi
     # CreatePlan tool_input = { name, overview, plan(markdown body), todos[] }.
     # Flatten name + overview + body into the single plan string the binary wants.
+    # The plan is not on disk yet, so planFilePath is empty; the binary reviews
+    # it without a file rather than matching it to a plan in ~/.claude/plans.
     plan="$(printf '%s' "$IN" | jq -r '
       [ .tool_input.name, .tool_input.overview, (.tool_input.plan // .tool_input.body // "") ]
       | map(select(. != null and . != "")) | join("\n\n")' 2>/dev/null)"
@@ -199,6 +201,12 @@ case "$SUB" in
     # hookable event). It pins each to this chat, so review-plan keys the
     # review by this chat, consumes the marker, and prints one absolute path
     # per line.
+    #
+    # Each plan below is its own binary process, which would start its own
+    # 270s budget (hookBudget in net.go) and let two slow plans outlive the
+    # stop's 300s timeout. They all inherit this stop's one deadline instead.
+    CLOVER_HOOK_DEADLINE="$(( $(date +%s) + 270 ))"
+    export CLOVER_HOOK_DEADLINE
     loops="$(printf '%s' "$IN" | jq -r '.loop_count // 0' 2>/dev/null)"
     new_plans="$(printf '%s' "$IN" | "$BIN" cursor-stop-plans 2>/dev/null)"
     [ -z "$new_plans" ] && exit 0
@@ -208,6 +216,7 @@ case "$SUB" in
       exit 0
     fi
     deny_reasons=""
+    denied_plans=""
     while IFS= read -r f; do
       [ -f "$f" ] || continue
       # .plan.md = YAML frontmatter (name/overview + todo machine-state) above
@@ -246,6 +255,8 @@ case "$SUB" in
       if [ "$decision" = "deny" ] && [ -n "$reason" ]; then
         deny_reasons="${deny_reasons}${deny_reasons:+
 }[$(basename "$f")] $reason"
+        denied_plans="${denied_plans}${denied_plans:+
+}$f"
       fi
     done <<< "$new_plans"
     if [ -n "$deny_reasons" ]; then
@@ -259,6 +270,12 @@ $deny_reasons"
       mkdir -p "$FUPS" 2>/dev/null || true
       printf '%s' "$msg" > "$FUPS/${session:-unknown}" 2>/dev/null || true
       jq -nc --arg m "$msg" '{followup_message:$m}'
+      # Record that these denials reached the developer, so a later stop does
+      # not re-send them while the plan's reviewed text is unchanged (Cursor
+      # rewrites the todo frontmatter as the chat implements the plan).
+      jq -nc --arg c "$session" --arg p "$denied_plans" \
+        '{conversation_id:$c, clover_followup_plans:($p | split("\n") | map(select(. != "")))}' \
+        | "$BIN" cursor-followup-sent >/dev/null 2>&1 || true
     fi
     ;;
 
