@@ -145,7 +145,10 @@ plan_text_from_raw() {
   if printf '%s\n' "$raw" | head -1 | grep -q '^---[[:space:]]*$'; then
     local fm body pname pover part
     fm="$(printf '%s\n' "$raw" | awk 'NR==1{next} /^---[ \t]*$/{exit} {print}')"
-    body="$(printf '%s\n' "$raw" | awk '/^---[ \t]*$/{c++; if(c==2){f=1; next}} f')"
+    # Leading blank lines dropped (Cursor writes one after the frontmatter) and
+    # trailing ones by $(), as cursorPlanTextFromRaw trims them: the binary
+    # matches a delivered denial by this text's hash.
+    body="$(printf '%s\n' "$raw" | awk '/^---[ \t]*$/{c++; if(c==2){f=1; next}} f && (s || length($0)) {s=1; print}')"
     pname="$(printf '%s\n' "$fm" | sed -n 's/^name:[[:space:]]*//p' | head -1)"
     pover="$(printf '%s\n' "$fm" | sed -n 's/^overview:[[:space:]]*//p' | head -1)"
     PLAN_TEXT=""

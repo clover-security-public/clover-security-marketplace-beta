@@ -21,6 +21,12 @@ locally, and until `devin plugins list` shows `clover`, sessions run without the
 plugin. It also silently replaces a `--local` install of the same plugin.
 `--local` installs immediately, on this machine only.
 
+The beta ring installs from its own marketplace:
+
+```bash
+devin plugins install clover-security-public/clover-security-marketplace-beta -y
+```
+
 Then set credentials once (Clover Settings → API Tokens):
 
 ```bash

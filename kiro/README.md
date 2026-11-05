@@ -27,8 +27,9 @@ That gives Clover a real plan artifact plus the closest analogue to Claude's
 
 1. Kiro finishes writing a spec. Capture reviews it and writes the security
    requirements Clover returns to `.kiro/steering/clover-requirements-<spec>.md`
-   (`inclusion: always`), which Kiro includes in every subsequent interaction —
-   alongside the `.clover-requirements.md` sidecar beside the spec. The
+   (`inclusion: fileMatch` on that spec's files), which Kiro includes whenever
+   the agent works on the spec — alongside a `.clover-requirements.md` sidecar
+   beside the spec's first file (`requirements.clover-requirements.md`). The
    developer's next prompt reprints them too, on `UserPromptSubmit`.
 2. The agent folds them into the spec and saves. That save is a genuine revision,
    so capture sends it for judgement; Clover approves only when the requirements
@@ -171,8 +172,8 @@ for `CLOVER_KIRO_SPEC_SETTLE_SECONDS`, default 4), so expect a few seconds of
 quiet before anything happens. Then:
 
 ```bash
-ls .kiro/steering/clover-requirements-*.md    # requirements Kiro will now always see
-ls .kiro/specs/*/.clover-requirements.md      # the sidecar beside the spec
+ls .kiro/steering/clover-requirements-*.md    # requirements Kiro includes for the spec
+ls .kiro/specs/*/*.clover-requirements.md     # the sidecar beside the spec
 ```
 
 Either file appearing means the round trip to Clover worked: the spec was sent,
