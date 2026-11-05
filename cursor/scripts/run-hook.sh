@@ -100,19 +100,13 @@ fi
 session="$(printf '%s' "$IN" | jq -r '.conversation_id // .generation_id // empty' 2>/dev/null)"
 cwd="$(printf '%s' "$IN" | jq -r '(.workspace_roots[0]) // .cwd // empty' 2>/dev/null)"
 
-# Context overrides forwarded to the binary (empty values are ignored there):
-# this plugin's manifest version, plus git context for the workspace root.
-# Computed here because the binary's own derivations are Claude-shaped
-# (.claude-plugin manifest path) or need a cwd that is a git repo.
+# Context override forwarded to the binary (an empty value is ignored there):
+# this plugin's manifest version, computed here because the binary's own lookup
+# is Claude-shaped (.claude-plugin manifest path). Branch, repository name and
+# URL are left to the binary, which reads them from the forwarded cwd and still
+# finds a URL when the remote isn't named origin.
 PLUG_DIR="${CURSOR_PLUGIN_ROOT:-$(cd "$(dirname "$0")/../.." && pwd)}"
 AGENT_VERSION="$(jq -r '.version // empty' "$PLUG_DIR/.cursor-plugin/plugin.json" 2>/dev/null)"
-GIT_BRANCH=""; GIT_REPO=""; GIT_URL=""
-if [ -n "$cwd" ] && [ -d "$cwd" ]; then
-  GIT_BRANCH="$(git -C "$cwd" branch --show-current 2>/dev/null)"
-  _tl="$(git -C "$cwd" rev-parse --show-toplevel 2>/dev/null)"
-  [ -n "$_tl" ] && GIT_REPO="$(basename "$_tl")"
-  GIT_URL="$(git -C "$cwd" config --get remote.origin.url 2>/dev/null)"
-fi
 
 # Convert a raw .plan.md serialization into the plan as the user reads it:
 # strip Cursor's YAML frontmatter (todo machine-state), lift name + overview,
@@ -152,8 +146,8 @@ case "$SUB" in
       [ .tool_input.name, .tool_input.overview, (.tool_input.plan // .tool_input.body // "") ]
       | map(select(. != null and . != "")) | join("\n\n")' 2>/dev/null)"
     claude_in="$(jq -nc --arg s "$session" --arg c "$cwd" --arg p "$plan" \
-      --arg an "$AGENT_NAME" --arg ca "$CODING_AGENT" --arg av "$AGENT_VERSION" --arg br "$GIT_BRANCH" --arg re "$GIT_REPO" --arg ru "$GIT_URL" \
-      '{session_id:$s, cwd:$c, agentName:$an, codingAgent:$ca, agentVersion:$av, branch:$br, repository:$re, repositoryUrl:$ru, tool_input:{plan:$p, planFilePath:""}}')"
+      --arg an "$AGENT_NAME" --arg ca "$CODING_AGENT" --arg av "$AGENT_VERSION" \
+      '{session_id:$s, cwd:$c, agentName:$an, codingAgent:$ca, agentVersion:$av, tool_input:{plan:$p, planFilePath:""}}')"
     out="$(printf '%s' "$claude_in" | "$BIN" review-plan)"
     decision="$(printf '%s' "$out" | jq -r '.hookSpecificOutput.permissionDecision // "allow"' 2>/dev/null)"
     reason="$(printf '%s' "$out" | jq -r '.hookSpecificOutput.permissionDecisionReason // empty' 2>/dev/null)"
@@ -221,8 +215,8 @@ case "$SUB" in
           2>/dev/null || true)"
       fi
       claude_in="$(jq -nc --arg s "$session" --arg c "$cwd" --arg p "$plan" --arg f "$f" \
-        --arg an "$AGENT_NAME" --arg ca "$CODING_AGENT" --arg av "$AGENT_VERSION" --arg br "$GIT_BRANCH" --arg re "$GIT_REPO" --arg ru "$GIT_URL" \
-        '{session_id:$s, cwd:$c, agentName:$an, codingAgent:$ca, agentVersion:$av, branch:$br, repository:$re, repositoryUrl:$ru, tool_input:{plan:$p, planFilePath:$f}}')"
+        --arg an "$AGENT_NAME" --arg ca "$CODING_AGENT" --arg av "$AGENT_VERSION" \
+        '{session_id:$s, cwd:$c, agentName:$an, codingAgent:$ca, agentVersion:$av, tool_input:{plan:$p, planFilePath:$f}}')"
       out="$(printf '%s' "$claude_in" | "$BIN" review-plan)"
       decision="$(printf '%s' "$out" | jq -r '.hookSpecificOutput.permissionDecision // "allow"' 2>/dev/null)"
       reason="$(printf '%s' "$out" | jq -r '.hookSpecificOutput.permissionDecisionReason // empty' 2>/dev/null)"
@@ -274,8 +268,8 @@ $deny_reasons"
       "$CLOVER_FOLLOWUP_PREFIX"*) continue_ok; exit 0 ;;
     esac
     claude_in="$(jq -nc --arg s "$session" --arg c "$cwd" --arg p "$prompt" \
-      --arg an "$AGENT_NAME" --arg ca "$CODING_AGENT" --arg av "$AGENT_VERSION" --arg br "$GIT_BRANCH" --arg re "$GIT_REPO" --arg ru "$GIT_URL" \
-      '{session_id:$s, cwd:$c, agentName:$an, codingAgent:$ca, agentVersion:$av, branch:$br, repository:$re, repositoryUrl:$ru, prompt:$p}')"
+      --arg an "$AGENT_NAME" --arg ca "$CODING_AGENT" --arg av "$AGENT_VERSION" \
+      '{session_id:$s, cwd:$c, agentName:$an, codingAgent:$ca, agentVersion:$av, prompt:$p}')"
     # Fire-and-forget audit; binary stdout suppressed so our protocol JSON
     # below is the only thing Cursor parses. stderr passes through to Cursor.
     printf '%s' "$claude_in" | "$BIN" log-prompt >/dev/null || true

@@ -119,21 +119,13 @@ session="$(printf '%s' "$IN" | jq -r '.session_id // .conversation_id // empty' 
 AGENT_VERSION="$(jq -r '.version // empty' "$DATA/.claude-plugin/plugin.json" 2>/dev/null)"
 [ -n "$AGENT_VERSION" ] || AGENT_VERSION="$(jq -r '.version // empty' "$ROOT/../.claude-plugin/plugin.json" 2>/dev/null)"
 
-GIT_BRANCH=""; GIT_REPO=""; GIT_URL=""
-if [ -n "$cwd" ] && [ -d "$cwd" ]; then
-  GIT_BRANCH="$(git -C "$cwd" branch --show-current 2>/dev/null)"
-  _tl="$(git -C "$cwd" rev-parse --show-toplevel 2>/dev/null)"
-  [ -n "$_tl" ] && GIT_REPO="$(basename "$_tl")"
-  GIT_URL="$(git -C "$cwd" config --get remote.origin.url 2>/dev/null)"
-fi
-
 # Attribution every request carries. Built once, merged into each payload.
+# Branch, repository name and URL are left to the binary, which reads them from
+# the forwarded cwd and still finds a URL when the remote isn't named origin.
 attribution() {
   jq -nc --arg s "$session" --arg c "$cwd" \
     --arg an "$AGENT_NAME" --arg ca "$CODING_AGENT" --arg av "$AGENT_VERSION" \
-    --arg br "$GIT_BRANCH" --arg re "$GIT_REPO" --arg ru "$GIT_URL" \
-    '{session_id:$s, cwd:$c, agentName:$an, codingAgent:$ca, agentVersion:$av,
-      branch:$br, repository:$re, repositoryUrl:$ru}'
+    '{session_id:$s, cwd:$c, agentName:$an, codingAgent:$ca, agentVersion:$av}'
 }
 
 case "$SUB" in
