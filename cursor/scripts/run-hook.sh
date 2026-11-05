@@ -195,8 +195,10 @@ case "$SUB" in
     # Which plans this stop owns is decided by the binary, the same code the
     # Windows path runs: the plans this chat (or its subagents) wrote since
     # this turn's generation marker — workspace *.plan.md included — plus
-    # ~/.cursor/plans files no other chat wrote (CreatePlan has no hookable
-    # event). It consumes the marker, and prints one absolute path per line.
+    # ~/.cursor/plans files no other chat wrote or owns (CreatePlan has no
+    # hookable event). It pins each to this chat, so review-plan keys the
+    # review by this chat, consumes the marker, and prints one absolute path
+    # per line.
     loops="$(printf '%s' "$IN" | jq -r '.loop_count // 0' 2>/dev/null)"
     new_plans="$(printf '%s' "$IN" | "$BIN" cursor-stop-plans 2>/dev/null)"
     [ -z "$new_plans" ] && exit 0
