@@ -16,7 +16,10 @@
 #   review-plan       preToolUse (tool_name=="CreatePlan"; Cursor never emits it
 #                     for CreatePlan — kept for if/when that changes)
 #
-# Fail-open, matching the Claude binary: any shim error allows the action.
+# Fail-open, matching the Claude binary: any shim error lets the action proceed.
+# A preToolUse path that does not block prints nothing — never
+# {"permission":"allow"}, which is a grant, not "no opinion" — so the call stays
+# with the user's own approval flow (marketplace/tests/cursor-pretool-no-allow.sh).
 set -uo pipefail
 
 SUB="${1:-}"
@@ -36,10 +39,9 @@ CLOVER_FOLLOWUP_PREFIX="Clover security review rejected the plan."
 
 IN="$(cat 2>/dev/null || true)"
 
-allow_pretool() { printf '{"permission":"allow"}\n'; }
 deny_pretool()  { jq -nc --arg r "$1" '{permission:"deny", user_message:$r, agent_message:$r}'; }
 continue_ok()   { printf '{"continue":true}\n'; }
-safe_default()  { case "$SUB" in log-prompt) continue_ok ;; review-plan-stop) : ;; *) allow_pretool ;; esac; }
+safe_default()  { case "$SUB" in log-prompt) continue_ok ;; *) : ;; esac; }
 
 # Locate the binary. sessionStart injects CLOVER_HOOK_BIN; otherwise derive it.
 BIN="${CLOVER_HOOK_BIN:-}"
@@ -155,7 +157,7 @@ case "$SUB" in
   review-plan)
     tool="$(printf '%s' "$IN" | jq -r '.tool_name // empty' 2>/dev/null)"
     if [ "$tool" != "CreatePlan" ]; then
-      allow_pretool; exit 0
+      exit 0
     fi
     # CreatePlan tool_input = { name, overview, plan(markdown body), todos[] }.
     # Flatten name + overview + body into the single plan string the binary wants.
@@ -168,7 +170,7 @@ case "$SUB" in
     out="$(printf '%s' "$claude_in" | "$BIN" review-plan)"
     decision="$(printf '%s' "$out" | jq -r '.hookSpecificOutput.permissionDecision // "allow"' 2>/dev/null)"
     reason="$(printf '%s' "$out" | jq -r '.hookSpecificOutput.permissionDecisionReason // empty' 2>/dev/null)"
-    if [ "$decision" = "deny" ] && [ -n "$reason" ]; then deny_pretool "$reason"; else allow_pretool; fi
+    if [ "$decision" = "deny" ] && [ -n "$reason" ]; then deny_pretool "$reason"; fi
     ;;
 
 
