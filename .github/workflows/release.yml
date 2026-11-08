@@ -194,6 +194,14 @@ jobs:
             jq --arg v "$v" --arg n "$claude_name" '(.plugins[] | select(.name == $n) | .version) = $v' .claude-plugin/marketplace.json > tmp.json && mv tmp.json .claude-plugin/marketplace.json
             jq --arg v "$v" --arg n "$cursor_name" '(.plugins[] | select(.name == $n) | .version) = $v' .cursor-plugin/marketplace.json > tmp.json && mv tmp.json .cursor-plugin/marketplace.json
             git add "$dir/.claude-plugin/plugin.json" "$dir/.cursor-plugin/plugin.json" .claude-plugin/marketplace.json .cursor-plugin/marketplace.json
+            # Codex installs from this manifest and caches by its version, so a
+            # bump that misses it leaves Codex users on the old content. Guarded
+            # like set_clover_version's, for a tree promoted before the plugin
+            # carried one.
+            if [ -f "$dir/.codex-plugin/plugin.json" ]; then
+              jq --arg v "$v" '.version = $v' "$dir/.codex-plugin/plugin.json" > tmp.json && mv tmp.json "$dir/.codex-plugin/plugin.json"
+              git add "$dir/.codex-plugin/plugin.json"
+            fi
           }
 
           BUMPED=false
