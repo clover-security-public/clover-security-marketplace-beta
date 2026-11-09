@@ -10,6 +10,12 @@
           },
           {
             "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/claude/scripts/run-hook.sh\" session-baseline",
+            "shell": "bash",
+            "timeout": 15
+          },
+          {
+            "type": "command",
             "command": "bash \"${CLAUDE_PLUGIN_ROOT}/claude/scripts/run-hook.sh\" check-update",
             "shell": "bash",
             "async": true,
@@ -51,6 +57,18 @@
             "shell": "bash",
             "async": true,
             "timeout": 20
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/claude/scripts/run-hook.sh\" stop-implementation-review",
+            "shell": "bash",
+            "timeout": 120
           }
         ]
       }

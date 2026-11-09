@@ -9,6 +9,12 @@
             "shell": "bash",
             "async": true,
             "timeout": 30
+          },
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/codex/scripts/run-hook.sh\" codex-session-start",
+            "shell": "bash",
+            "timeout": 15
           }
         ]
       }
@@ -26,6 +32,30 @@
         ]
       }
     ],
+    "PostToolUse": [
+      {
+        "matcher": "apply_patch",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/codex/scripts/run-hook.sh\" codex-log-edited-files",
+            "shell": "bash",
+            "timeout": 20
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/codex/scripts/run-hook.sh\" codex-log-edited-files",
+            "shell": "bash",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
     "Stop": [
       {
         "hooks": [
@@ -34,6 +64,13 @@
             "command": "bash \"${CLAUDE_PLUGIN_ROOT}/codex/scripts/run-hook.sh\" codex-review-plan",
             "shell": "bash",
             "timeout": 300
+          },
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/codex/scripts/run-hook.sh\" codex-stop-implementation-review",
+            "shell": "bash",
+            "async": true,
+            "timeout": 30
           }
         ]
       }
@@ -41,6 +78,12 @@
     "UserPromptSubmit": [
       {
         "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/codex/scripts/run-hook.sh\" codex-inject-implementation-requirements",
+            "shell": "bash",
+            "timeout": 10
+          },
           {
             "type": "command",
             "command": "bash \"${CLAUDE_PLUGIN_ROOT}/codex/scripts/run-hook.sh\" codex-log-prompt",

@@ -105,6 +105,28 @@ for name in $(jq -r '.plugins[].name' "$MANIFEST"); do
   echo "OK: $name — metadata complete, hooks match $hooks_file"
 done
 
+# --- clover: Claude implementation review wiring, in the entry and hooks.json --
+# session-baseline pins the diff the session starts from before the first turn,
+# and stop-implementation-review polls and returns requirements as context the
+# turn continues with — both sync, each with a timeout above its poll budget.
+# assert_hook <file> <jq path to the hooks object> <event> <subcommand> <timeout>
+assert_hook() {
+  local hook
+  hook=$(jq -c --arg event "$3" --arg sub "$4" \
+    "$2"' | .[$event] // [] | [.[].hooks[] | select(.command | endswith("run-hook.sh\" " + $sub))]' "$1")
+  if [ "$(jq 'length' <<<"$hook")" != "1" ]; then
+    echo "ERROR: $1: want exactly one $3 hook running $4, got $hook" >&2
+    FAILED=1
+  elif [ "$(jq --argjson timeout "$5" '.[0] | (has("async") | not) and .timeout == $timeout and .shell == "bash"' <<<"$hook")" != "true" ]; then
+    echo "ERROR: $1: $3 $4 must be sync (no async), shell bash, timeout $5 — got $hook" >&2
+    FAILED=1
+  fi
+}
+for target in "claude/hooks/hooks.json:.hooks" "$MANIFEST:.plugins[] | select(.name == \"clover\") | .hooks"; do
+  assert_hook "${target%%:*}" "${target#*:}" SessionStart session-baseline 15
+  assert_hook "${target%%:*}" "${target#*:}" Stop stop-implementation-review 120
+done
+
 [ -f USAGE.md ] || { echo "ERROR: USAGE.md is missing — README.md links it" >&2; FAILED=1; }
 
 exit "$FAILED"
