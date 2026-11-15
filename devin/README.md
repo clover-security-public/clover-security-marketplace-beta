@@ -1,7 +1,8 @@
 # Clover for Devin
 
 Brings Clover's silent plan review to **Devin** — the CLI ("Devin for Terminal")
-and Devin Desktop, which run the same local agent and read the same config.
+and Devin Desktop, which run the same local agent and read the same config, and
+app.devin.ai cloud sessions (see **Devin Cloud sessions**).
 Installs through Devin's own plugin system and shares the `clover-hook` binary
 and `bin/` tree with the Claude, Cursor and Kiro surfaces.
 
@@ -57,19 +58,65 @@ passes to the plugin through its manifest `env`, with a link to the setup docs.
 in the plugin cache. A `#devin` install therefore has no `bin/` and no
 `.claude-plugin/plugin.json` beside it, so `setup.sh` finds no bundled binary and
 no channel — it deploys nothing, every hook fails open, and writes go ungated
-while `devin plugins info` still lists three healthy hooks. Making the tree root
+while `devin plugins info` still lists four healthy hooks. Making the tree root
 the plugin is what puts `bin/` and the channel manifest inside the install.
 
 `marketplace/.devin-plugin/plugin.json` and `marketplace/hooks.json` are that
 root plugin. There is deliberately no manifest under `devin/`, so a `#devin`
 install fails outright instead of silently installing a gate that never fires.
 
-### Devin Cloud sessions are not covered
+### Devin Cloud sessions
 
-Verified against a live cloud sandbox: the classic cloud VM has no CLI plugin
-store and does not execute CLI plugin hooks. Work done in app.devin.ai cloud
-sessions is therefore **not gated by this plugin** — coverage there comes from
-the Devin API integration (`IntegrationType.Devin`), not hooks.
+Per Devin's plugin documentation, cloud sessions "fetch the enterprise,
+organization, and personal manifests at start and install the resulting
+plugins on the session machine"
+([plugins](https://docs.devin.ai/product-guides/plugins)). They run `command`
+hooks only, skipping `prompt` hooks
+([plugins overview](https://docs.devin.ai/cli/extensibility/plugins/overview)),
+and never fire `SessionEnd`. All four Clover hooks are `command` hooks on
+`SessionStart`, `UserPromptSubmit` and `PreToolUse` (`marketplace/hooks.json`),
+so none is skipped. A cloud `SessionStart` runs in the background and the agent
+does not wait for it
+([lifecycle hooks](https://docs.devin.ai/cli/extensibility/hooks/lifecycle-hooks)),
+which is safe here: `run-hook.sh` deploys the binary itself when `setup` has not
+finished. The session machine is Linux, so hooks go through `run-hook.sh` and
+log to `~/.devin/clover/.clover-hook.log`.
+
+An org admin sets it up once, with no developer machine involved:
+
+1. Store the Clover `client_id` / `client_secret` as organization-level secrets
+   (**Settings → Resources → Secrets**).
+2. **Customize** → organization in the scope menu → **Plugins → Add plugin →
+   From repository** → `clover-security-public/agentic-security-marketplace`
+   (needs the **Manage plugins** organization permission).
+3. **Plugin settings (gear) → Edit manifest**: give the entry an `env` block,
+   which Devin documents as configuring command hooks in cloud sessions, that
+   references the secrets and turns self-update off (see **Updates**):
+
+   ```json
+   {
+     "source": "github",
+     "repo": "clover-security-public/agentic-security-marketplace",
+     "env": {
+       "CLOVER_SECURITY_KURA_PLUGIN_CLIENT_ID": "secret:org:CLOVER_KURA_CLIENT_ID",
+       "CLOVER_SECURITY_KURA_PLUGIN_CLIENT_SECRET": "secret:org:CLOVER_KURA_CLIENT_SECRET",
+       "CLOVER_DEVIN_SELF_UPDATE": "off"
+     }
+   }
+   ```
+
+Changes apply from the next session; running sessions keep what they loaded at
+start. The enterprise scope (`secret:enterprise:`) covers every org at once.
+
+**Not yet verified live.** Everything above comes from Devin's documentation and
+this repo's code. No live cloud session has run it, so these remain open: whether
+cloud sessions set `DEVIN_PLUGIN_ROOT` (every hook command resolves through it),
+which write and plan tool names the cloud agent sends to `PreToolUse`, and
+whether the manifest `env` reaches the hook process. The hook log in a first
+cloud session answers all three. The Devin API integration (`IntegrationType.Devin`)
+is separate: it reports usage (sessions, users, AI-written lines) and reviews no
+plans. Customer-facing steps live in clover-docs, under *Connecting Kura To
+Coding Agents → Devin → Cloud sessions*.
 
 ### Local validation
 
@@ -113,10 +160,15 @@ is one secret in one place.
 **What does NOT work** — all verified against Devin CLI 3000.6.2, so don't
 burn time on them: a `userConfig`/`secrets` block in the plugin manifest
 (ignored, no prompt), an `env` map on a hook entry (not injected), and an `env`
-block in `.devin/config.json` (not injected). Devin's org "managed plugins"
-scope exists in its config model but its admin-side setup is undocumented here —
-if Devin's admin console can push plugins org-wide, step 1 collapses into it;
-credentials still arrive per this section.
+block in `.devin/config.json` (not injected). The `env` block on a managed
+manifest entry is a different mechanism: it is how credentials reach cloud
+sessions (see **Devin Cloud sessions**).
+
+An org admin can also install the plugin from **Customize** at organization or
+enterprise scope instead of step 1. That covers the org's cloud sessions, and
+the CLI and Desktop of members whose primary organization it is. Devin documents
+the manifest `env` block for cloud sessions only, so local machines still take
+their credentials from this section.
 
 `CLOVER_DEVIN_ROOT` relocates the adapter to a fixed path if an org prefers to
 lay the files down itself instead of using the plugin manager.
@@ -141,7 +193,7 @@ without it (a Devin cloud VM is not documented to ship it) still reviews plans.
 | `UserPromptSubmit` | `log-prompt` — prompt audit | same |
 | `PreToolUse` (`write\|edit\|apply_patch\|write_plan`) | `review-write` — plan gate | `Edit\|Write\|MultiEdit` → `should-review-plan` |
 | — | n/a: the plan is reviewed at `write_plan` | `ExitPlanMode` → `review-plan` |
-| — | not wired (see **Updates**) | `SessionStart` → `check-update` |
+| `SessionStart` | `check-update` — self-update (see **Updates**) | same |
 
 `apply_patch` is in the matcher because Devin writes files through it too, and
 GPT-family models write every file with it. It carries a patch rather than the
