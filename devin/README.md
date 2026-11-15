@@ -42,8 +42,10 @@ was installed.
 Until it is configured, Clover reviews nothing. Devin surfaces neither hook
 stderr nor an install prompt, so that state would otherwise be invisible: the
 first prompt of each session injects a `UserPromptSubmit` `additionalContext`
-notice telling the user to run the command above — once per session, not per
-prompt.
+notice — once per session, not per prompt. A hook cannot tell a Devin cloud
+session from a local one, so the notice names both fixes: the command above on
+the developer's own machine, and, for cloud sessions, org secrets an admin
+passes to the plugin through its manifest `env`, with a link to the setup docs.
 
 > **Workspace trust is required.** Devin ignores project config *and hooks* in an
 > untrusted workspace, silently. The first `devin` run in a repo prompts to trust
@@ -240,6 +242,12 @@ the running executable.
 Devin has no marketplace autoUpdate, so the plugin's own check is the only
 automatic path; the local channel (a symlinked working tree) is exempt. Manual
 refresh is still `devin plugins update clover`.
+
+`CLOVER_DEVIN_SELF_UPDATE=0` (or `false`/`off`/`no`) opts out, as
+`CLOVER_CURSOR_SELF_UPDATE` and `CLOVER_CODEX_SELF_UPDATE` do for their
+surfaces. Devin cloud sessions should set it: each one installs the plugin from
+its managed manifest at start, so there is nothing to update. Set it in the
+manifest entry's `env` block beside the credentials.
 
 ## Binary and channels
 
