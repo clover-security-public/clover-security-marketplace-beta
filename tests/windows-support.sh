@@ -114,10 +114,11 @@ if [ "$(jq '[.. | objects | .command? // empty] | map(select(test("bash|\\.sh"))
   echo "ERROR: a Devin hook command names bash or a .sh, which spawns Git Bash on Windows" >&2
   exit 1
 fi
-# apply_patch writes files too; leaving it out of the matcher is a hole the
-# gate cannot see, because the hook simply never fires for those writes.
-if [ "$(jq -r '.PreToolUse[0].matcher' "$ROOT/hooks.json")" != "write|edit|apply_patch" ]; then
-  echo "ERROR: Devin plan gate does not cover write|edit|apply_patch" >&2
+# apply_patch writes files too, and plan mode writes the plan with write_plan;
+# leaving either out of the matcher is a hole the gate cannot see, because the
+# hook simply never fires for those writes.
+if [ "$(jq -r '.PreToolUse[0].matcher' "$ROOT/hooks.json")" != "write|edit|apply_patch|write_plan" ]; then
+  echo "ERROR: Devin plan gate does not cover write|edit|apply_patch|write_plan" >&2
   exit 1
 fi
 if ! git -C "$ROOT" check-attr eol -- devin/scripts/clover-hook.cmd | grep -q 'eol: crlf'; then

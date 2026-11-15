@@ -26,7 +26,7 @@
   ],
   "PreToolUse": [
     {
-      "matcher": "write|edit|apply_patch",
+      "matcher": "write|edit|apply_patch|write_plan",
       "hooks": [
         {
           "type": "command",

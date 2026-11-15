@@ -101,7 +101,7 @@ from, in order:
   a managed shell-profile drop on macOS/Linux, user environment variables on
   Windows (the Windows path reads process env directly and does not source any
   file).
-- **`~/.devin/clover/env.sh` (mode 600), POSIX only** — verified: the shim
+- **`~/.devin/clover/env.sh` (mode 600), POSIX only** — verified: the launcher
   sources it when the env is empty. A one-file MDM/fleet drop per machine;
   `configure.sh` writes exactly this file for the manual case.
 
@@ -124,15 +124,21 @@ lay the files down itself instead of using the plugin manager.
 Devin's hooks are Claude-Code-compatible in shape but not vocabulary: tool names
 are lowercase (`write`, `edit`, `exec`), `matcher` is a **regex over
 `tool_name`**, and a block is `{"decision":"block","reason":…}` rather than
-Claude's `hookSpecificOutput.permissionDecision`. The shim emits both dialects,
-so a vocabulary change cannot silently turn the gate into a no-op.
+Claude's `hookSpecificOutput.permissionDecision`. The binary emits both
+dialects, so a vocabulary change cannot silently turn the gate into a no-op.
+
+Every hook runs the bundled binary's `devin-*` subcommands on every platform.
+On macOS and Linux, `run-hook.sh` only deploys the binary if `SessionStart`
+never ran, sources `env.sh` when the environment carries no credentials, and
+pipes the payload through. It needs nothing but bash: no `jq`, so a machine
+without it (a Devin cloud VM is not documented to ship it) still reviews plans.
 
 | Devin event | Clover action | Claude equivalent |
 |---|---|---|
 | `SessionStart` | `setup` — deploy + verify binary | same |
 | `UserPromptSubmit` | `log-prompt` — prompt audit | same |
-| `PreToolUse` (`write\|edit\|apply_patch`) | `review-write` — plan gate | `Edit\|Write\|MultiEdit` → `should-review-plan` |
-| — | n/a: no `ExitPlanMode` tool | `ExitPlanMode` → `review-plan` |
+| `PreToolUse` (`write\|edit\|apply_patch\|write_plan`) | `review-write` — plan gate | `Edit\|Write\|MultiEdit` → `should-review-plan` |
+| — | n/a: the plan is reviewed at `write_plan` | `ExitPlanMode` → `review-plan` |
 | — | not wired (see **Updates**) | `SessionStart` → `check-update` |
 
 `apply_patch` is in the matcher because Devin writes files through it too, and
@@ -141,6 +147,16 @@ file, so a patch in the Codex format (`*** Begin Patch`) is handed to the
 binary's `devin-review-write`, which rebuilds each `.md` it writes with the
 Codex gate's parser and reviews the result; without that the gate finds a path,
 resolves no content, and allows — which reads exactly like a reviewed write.
+
+`write_plan` is in the matcher because plan mode writes the plan with it, not
+with `write`. Its `tool_input` is `{title, summary, plan}` and names no file:
+Devin renders it into the session's plan file under `~/.devin/plans/` itself.
+`devin-review-write` renders the same
+Markdown (`# title`, the summary, then the plan) and reviews it as a `.md` write
+to `~/.devin/plans/<session_id>.md`. That path is Clover's, not the file Devin
+writes; it is stable per session, so each revision of the plan is judged
+against the same review, and the requirements sidecar lands beside it. Without
+this branch the gate finds no path and allows the plan unreviewed.
 
 Devin exports `DEVIN_PLUGIN_ROOT` (and `CLAUDE_PLUGIN_ROOT`, `CLAUDE_PROJECT_DIR`)
 to plugin hooks; `PLUGIN_ROOT` from the public docs is **not** set. Hook commands
@@ -152,15 +168,16 @@ the hooks file.
 ### Why the plan gate hangs off `.md` writes
 
 Clover reviews *plan text*. Claude Code hands it over through the `ExitPlanMode`
-tool input; Devin has no such tool, and its `/plan` approval is a UI action, not
-a hook event. What Devin does expose is `PreToolUse` with a regex matcher, and
-`write`/`edit` carry `file_path` + `content`.
+tool input. Devin's plan mode writes the plan with `write_plan` before its
+approval, which is a UI action, not a hook event. What Devin does expose is
+`PreToolUse` with a regex matcher: `write`/`edit` carry `file_path` + `content`,
+and `write_plan` carries the plan itself.
 
 That is the seam Claude Code's auto-mode already uses: intercept the `.md` write
 and let the server classify whether the file is a plan (`should-review-plan`).
 A plan the agent is about to commit to disk is reviewed before it lands; a
 non-plan `.md` is waved through by the server's classifier; anything that is not
-`.md` never leaves the shim.
+`.md` never leaves the binary.
 
 ## Provider equivalence
 
@@ -179,10 +196,13 @@ changing what gets reviewed.
 
 **The one real difference:** Claude has a second gate, `ExitPlanMode` →
 `review-plan`, which reviews a plan the moment plan mode exits, even if it is
-never written to disk. Devin has no `ExitPlanMode` tool and its `/plan` approval
-is not a hook event, so on Devin a plan that is only discussed in chat and never
-written to a `.md` is **not** reviewed. Anything written to a `.md` is gated
-identically on both.
+never written to disk. Devin's `exit_plan_mode` is not gated: its plan mode
+writes the plan with `write_plan` first, and that write is reviewed. A plan
+that is only discussed in chat, never through `write_plan` or a `.md` write, is
+**not** reviewed. Anything written to a `.md` is gated identically on both.
+
+`write_plan`'s field names (`title`, `summary`, `plan`) come from the Devin CLI
+3000.11.234 tool schema, not from a captured hook payload.
 
 `apply_patch` is covered defensively: Devin's model reached for `edit` in every
 live capture, so its payload shape has not been observed in the wild. The gate
@@ -197,10 +217,11 @@ the same shape Cursor uses. Line 1 is a label to `cmd.exe` and an `exec` into
 `setup.sh` / `run-hook.sh` for POSIX, so macOS and Linux behave exactly as if
 the scripts were called directly.
 
-On Windows there is no bash and no jq, so the batch half skips the shell
-entirely and pipes the hook payload straight into the bundled `.exe`, which
-speaks Devin's protocol natively through its `devin-setup`, `devin-log-prompt`
-and `devin-review-write` subcommands (`cmd/clover-hook/agent_devin.go`). No hook
+On Windows there is no bash, so the batch half skips the shell entirely and
+pipes the hook payload straight into the bundled `.exe`, which speaks Devin's
+protocol natively through its `devin-setup`, `devin-log-prompt`,
+`devin-review-write` and `devin-check-update` subcommands
+(`cmd/clover-hook/agent_devin.go`) — the same ones `run-hook.sh` calls. No hook
 command names `bash` or a `.sh`, so nothing spawns a Git Bash console window on
 every prompt. ARM64 falls back to the amd64 build, which Windows emulates.
 
@@ -234,19 +255,19 @@ assembly and carry-forward scripts stamp per channel.
 not stamp; reading it for the deploy decision would pin every channel to a stale
 snapshot and skip the redeploy a new build needs.
 
-`setup.sh` also refuses a binary lacking the **`should-review-plan`** subcommand:
-an older build exits `Unknown command`, the shim fails open on every write, and
-the gate is silently absent rather than visibly broken.
+`setup.sh` also refuses a binary lacking the **`devin-review-write`** subcommand:
+an older build exits `Unknown command`, the launcher fails open on every write,
+and the gate is silently absent rather than visibly broken.
 
 ## Fail-open
 
-Every hook path fails open: missing `jq`, a missing or unverifiable binary, auth
+Every hook path fails open: a missing or unverifiable binary, auth
 failure, an unparseable payload, or a server timeout all allow the write. The
 gate blocks only on an explicit deny from the server.
 
 ## Debugging
 
-- `CLOVER_DEBUG=1` — shim diagnostics on stderr.
+- `CLOVER_DEBUG=1` — launcher diagnostics on stderr.
 - Binary log: `~/.devin/clover/.clover-hook.log`.
 - `/hooks` inside Devin — shows which hooks loaded and from where.
 - `hooks/discover.hooks.v1.json` — install as `.devin/hooks.v1.json` to log every
