@@ -26,6 +26,14 @@ command = "@CLOVER_CODEX_MANAGED_DIR@/run-hook.sh codex-should-review-plan"
 timeout = 300
 statusMessage = "Clover is checking the plan"
 
+[[hooks.PreToolUse]]
+matcher = "^(apply_patch|Bash)$"
+
+[[hooks.PreToolUse.hooks]]
+type = "command"
+command = "@CLOVER_CODEX_MANAGED_DIR@/run-hook.sh codex-snapshot-working-tree"
+timeout = 15
+
 [[hooks.PostToolUse]]
 matcher = "^apply_patch$"
 

@@ -30,6 +30,17 @@
             "timeout": 300
           }
         ]
+      },
+      {
+        "matcher": "apply_patch|Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/codex/scripts/run-hook.sh\" codex-snapshot-working-tree",
+            "shell": "bash",
+            "timeout": 15
+          }
+        ]
       }
     ],
     "PostToolUse": [

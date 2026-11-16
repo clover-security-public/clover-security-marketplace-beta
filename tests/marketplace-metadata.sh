@@ -109,6 +109,9 @@ done
 # session-baseline pins the diff the session starts from before the first turn,
 # and stop-implementation-review polls and returns requirements as context the
 # turn continues with — both sync, each with a timeout above its poll budget.
+# snapshot-working-tree (before an edit tool or Bash) and mark-session-edit
+# (after it, succeeded or failed) count the session's own edits, which gate the
+# Stop's submit; all sync, so a mark lands before the Stop reads it.
 # assert_hook <file> <jq path to the hooks object> <event> <subcommand> <timeout>
 assert_hook() {
   local hook
@@ -122,9 +125,23 @@ assert_hook() {
     FAILED=1
   fi
 }
+# assert_matcher <file> <jq path to the hooks object> <event> <subcommand> <matcher>
+assert_matcher() {
+  local matchers
+  matchers=$(jq -c --arg event "$3" --arg sub "$4" \
+    "$2"' | .[$event] // [] | [.[] | select(any(.hooks[]; .command | endswith("run-hook.sh\" " + $sub))) | .matcher]' "$1")
+  if [ "$matchers" != "$(jq -cn --arg m "$5" '[$m]')" ]; then
+    echo "ERROR: $1: $3 $4 must match exactly \"$5\", got $matchers" >&2
+    FAILED=1
+  fi
+}
 for target in "claude/hooks/hooks.json:.hooks" "$MANIFEST:.plugins[] | select(.name == \"clover\") | .hooks"; do
   assert_hook "${target%%:*}" "${target#*:}" SessionStart session-baseline 15
   assert_hook "${target%%:*}" "${target#*:}" Stop stop-implementation-review 120
+  for event_and_subcommand in PreToolUse:snapshot-working-tree PostToolUse:mark-session-edit PostToolUseFailure:mark-session-edit; do
+    assert_hook "${target%%:*}" "${target#*:}" "${event_and_subcommand%%:*}" "${event_and_subcommand#*:}" 15
+    assert_matcher "${target%%:*}" "${target#*:}" "${event_and_subcommand%%:*}" "${event_and_subcommand#*:}" "Edit|Write|MultiEdit|NotebookEdit|Bash"
+  done
 done
 
 [ -f USAGE.md ] || { echo "ERROR: USAGE.md is missing — README.md links it" >&2; FAILED=1; }

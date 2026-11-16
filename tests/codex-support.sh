@@ -16,6 +16,12 @@ assert session_start[0]["async"] is True, session_start
 # The session baseline must be pinned before the first turn, so it runs sync.
 assert session_start[1]["command"].endswith("codex-session-start"), session_start
 assert "async" not in session_start[1] and session_start[1]["timeout"] <= 30, session_start
+# The working-tree snapshot is what tells PostToolUse whether the patch or
+# command edited, so it runs sync before each.
+pre_tool_use = hooks["PreToolUse"]
+assert [group["matcher"] for group in pre_tool_use] == ["apply_patch", "apply_patch|Bash"], pre_tool_use
+assert pre_tool_use[1]["hooks"][0]["command"].endswith("codex-snapshot-working-tree"), pre_tool_use
+assert "async" not in pre_tool_use[1]["hooks"][0] and pre_tool_use[1]["hooks"][0]["timeout"] == 15, pre_tool_use
 post_tool_use = hooks["PostToolUse"]
 assert [group["matcher"] for group in post_tool_use] == ["apply_patch", "Bash"], post_tool_use
 assert all(len(group["hooks"]) == 1 and group["hooks"][0]["command"].endswith("codex-log-edited-files") for group in post_tool_use), post_tool_use
@@ -211,6 +217,10 @@ assert config["hooks"]["managed_dir"] == managed_dir
 assert "allow_managed_hooks_only" not in config
 assert set(config["hooks"]) == {"managed_dir", "SessionStart", "PreToolUse", "PostToolUse", "Stop", "UserPromptSubmit"}
 commands = [hook["command"] for event in ("SessionStart", "PreToolUse", "PostToolUse", "Stop", "UserPromptSubmit") for group in config["hooks"][event] for hook in group["hooks"]]
+assert [group["matcher"] for group in config["hooks"]["PreToolUse"]] == ["^apply_patch$", "^(apply_patch|Bash)$"], config["hooks"]["PreToolUse"]
+assert commands.count(managed_dir + "/run-hook.sh codex-snapshot-working-tree") == 1, commands
+shell_pre_tool_use_hook = config["hooks"]["PreToolUse"][1]["hooks"][0]
+assert "async" not in shell_pre_tool_use_hook and shell_pre_tool_use_hook["timeout"] == 15, shell_pre_tool_use_hook
 assert [group["matcher"] for group in config["hooks"]["PostToolUse"]] == ["^apply_patch$", "^Bash$"], config["hooks"]["PostToolUse"]
 assert commands.count(managed_dir + "/run-hook.sh codex-log-edited-files") == 2, commands
 assert commands.count(managed_dir + "/run-hook.sh codex-session-start") == 1, commands

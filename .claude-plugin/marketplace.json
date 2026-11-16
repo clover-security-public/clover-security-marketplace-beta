@@ -61,6 +61,17 @@
                 "timeout": 300
               }
             ]
+          },
+          {
+            "matcher": "Edit|Write|MultiEdit|NotebookEdit|Bash",
+            "hooks": [
+              {
+                "type": "command",
+                "command": "bash \"${CLAUDE_PLUGIN_ROOT}/claude/scripts/run-hook.sh\" snapshot-working-tree",
+                "shell": "bash",
+                "timeout": 15
+              }
+            ]
           }
         ],
         "UserPromptSubmit": [
@@ -72,6 +83,32 @@
                 "shell": "bash",
                 "async": true,
                 "timeout": 20
+              }
+            ]
+          }
+        ],
+        "PostToolUse": [
+          {
+            "matcher": "Edit|Write|MultiEdit|NotebookEdit|Bash",
+            "hooks": [
+              {
+                "type": "command",
+                "command": "bash \"${CLAUDE_PLUGIN_ROOT}/claude/scripts/run-hook.sh\" mark-session-edit",
+                "shell": "bash",
+                "timeout": 15
+              }
+            ]
+          }
+        ],
+        "PostToolUseFailure": [
+          {
+            "matcher": "Edit|Write|MultiEdit|NotebookEdit|Bash",
+            "hooks": [
+              {
+                "type": "command",
+                "command": "bash \"${CLAUDE_PLUGIN_ROOT}/claude/scripts/run-hook.sh\" mark-session-edit",
+                "shell": "bash",
+                "timeout": 15
               }
             ]
           }
