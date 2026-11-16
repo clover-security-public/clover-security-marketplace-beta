@@ -245,6 +245,14 @@ not tracked; such a workspace keeps only the heredoc half. A background command
 `PostToolUse`. Devin documents `command` in `exec`'s `tool_input` but no tool
 use id, so a call's two halves pair on the command and its directory.
 
+Where a command starts: an explicit `workdir`, otherwise the payload's
+directory, except on a Devin cloud machine (`/opt/.devin` exists). A live cloud
+session showed each `exec` call runs in a fresh shell that starts in `$HOME`
+(`/home/ubuntu`) while the payload names `/home/ubuntu/repos`, so there the gate
+starts from `$HOME`. A heredoc's relative path also follows any `cd` earlier in
+the same command. A heredoc plan reviewed before the command is recognised by
+its content afterwards, wherever its path resolved.
+
 Devin exports `DEVIN_PLUGIN_ROOT` (and `CLAUDE_PLUGIN_ROOT`, `CLAUDE_PROJECT_DIR`)
 to plugin hooks; `PLUGIN_ROOT` from the public docs is **not** set. Hook commands
 resolve their root as
