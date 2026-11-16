@@ -13,7 +13,7 @@ The plugin is the **marketplace tree root**, not the `devin/` subdirectory:
 ```bash
 devin plugins install clover-security-public/agentic-security-marketplace -y
 
-devin plugins info clover     # Hooks must list 4 entries
+devin plugins info clover     # Hooks must list 5 entries
 ```
 
 A plain install registers at the **account** (synced to your other devices and
@@ -58,7 +58,7 @@ passes to the plugin through its manifest `env`, with a link to the setup docs.
 in the plugin cache. A `#devin` install therefore has no `bin/` and no
 `.claude-plugin/plugin.json` beside it, so `setup.sh` finds no bundled binary and
 no channel — it deploys nothing, every hook fails open, and writes go ungated
-while `devin plugins info` still lists four healthy hooks. Making the tree root
+while `devin plugins info` still lists five healthy hooks. Making the tree root
 the plugin is what puts `bin/` and the channel manifest inside the install.
 
 `marketplace/.devin-plugin/plugin.json` and `marketplace/hooks.json` are that
@@ -73,9 +73,10 @@ plugins on the session machine"
 ([plugins](https://docs.devin.ai/product-guides/plugins)). They run `command`
 hooks only, skipping `prompt` hooks
 ([plugins overview](https://docs.devin.ai/cli/extensibility/plugins/overview)),
-and never fire `SessionEnd`. All four Clover hooks are `command` hooks on
-`SessionStart`, `UserPromptSubmit` and `PreToolUse` (`marketplace/hooks.json`),
-so none is skipped. A cloud `SessionStart` runs in the background and the agent
+and never fire `SessionEnd`. All five Clover hooks are `command` hooks on
+`SessionStart`, `UserPromptSubmit`, `PreToolUse` and `PostToolUse`
+(`marketplace/hooks.json`), so none is skipped. The cloud agent writes files
+only through `exec`, which the **Exec gate** covers. A cloud `SessionStart` runs in the background and the agent
 does not wait for it
 ([lifecycle hooks](https://docs.devin.ai/cli/extensibility/hooks/lifecycle-hooks)),
 which is safe here: `run-hook.sh` deploys the binary itself when `setup` has not
@@ -108,12 +109,15 @@ An org admin sets it up once, with no developer machine involved:
 Changes apply from the next session; running sessions keep what they loaded at
 start. The enterprise scope (`secret:enterprise:`) covers every org at once.
 
-**Not yet verified live.** Everything above comes from Devin's documentation and
-this repo's code. No live cloud session has run it, so these remain open: whether
-cloud sessions set `DEVIN_PLUGIN_ROOT` (every hook command resolves through it),
-which write and plan tool names the cloud agent sends to `PreToolUse`, and
-whether the manifest `env` reaches the hook process. The hook log in a first
-cloud session answers all three. The Devin API integration (`IntegrationType.Devin`)
+**Verified in live cloud sessions (2026-11-16, personal install, beta
+channel):** the plugin installs a few seconds after the session starts;
+`DEVIN_PLUGIN_ROOT` resolves, so `SessionStart` deployed the binary and ran the
+update check; the machine has `jq` and bash; `UserPromptSubmit` fires and the
+missing-credentials notice reaches the agent verbatim. Because the plugin loads
+after the session starts, the **first prompt is not logged**. The agent has no
+file-write tool and writes every file through `exec`, which is why the **Exec
+gate** exists. Still open: whether the manifest `env` reaches the hook process
+(those sessions had no secrets set). The Devin API integration (`IntegrationType.Devin`)
 is separate: it reports usage (sessions, users, AI-written lines) and reviews no
 plans. Customer-facing steps live in clover-docs, under *Connecting Kura To
 Coding Agents → Devin → Cloud sessions*.
@@ -191,7 +195,8 @@ without it (a Devin cloud VM is not documented to ship it) still reviews plans.
 |---|---|---|
 | `SessionStart` | `setup` — deploy + verify binary | same |
 | `UserPromptSubmit` | `log-prompt` — prompt audit | same |
-| `PreToolUse` (`write\|edit\|apply_patch\|write_plan`) | `review-write` — plan gate | `Edit\|Write\|MultiEdit` → `should-review-plan` |
+| `PreToolUse` (`write\|edit\|apply_patch\|write_plan\|exec`) | `review-write` — plan gate | `Edit\|Write\|MultiEdit` → `should-review-plan` |
+| `PostToolUse` (`exec`) | `review-exec` — plan gate for shell writes (see **Exec gate**) | — |
 | — | n/a: the plan is reviewed at `write_plan` | `ExitPlanMode` → `review-plan` |
 | `SessionStart` | `check-update` — self-update (see **Updates**) | same |
 
@@ -211,6 +216,34 @@ to `~/.devin/plans/<session_id>.md`. That path is Clover's, not the file Devin
 writes; it is stable per session, so each revision of the plan is judged
 against the same review, and the requirements sidecar lands beside it. Without
 this branch the gate finds no path and allows the plan unreviewed.
+
+### Exec gate
+
+Devin cloud has no file-write tool: a live cloud session reported it writes
+every file, plans included, through its shell tool `exec`, so a gate on
+`write`/`edit` alone never fires there. `exec` gets the same gate in two halves
+(`cmd/clover-hook/agent_devin_exec.go`):
+
+- **Before the command (`PreToolUse`).** A Markdown file written through a
+  heredoc (`cat > PLAN.md <<'EOF'`, `cat <<EOF >> NOTES.md`, `tee [-a] F.md
+  <<EOF`, `<<-` included) is rebuilt from the command and reviewed like any
+  `.md` write. A deny blocks the command, so the plan never lands. An unquoted
+  delimiter's expansions are not applied; the body is reviewed as written.
+- **After the command (`PostToolUse`).** Any other write (python, `sed -i`,
+  `cp`, `printf >`) cannot be read from the command, so `PreToolUse` first
+  snapshots the workspace's Markdown: the repository the command runs in, or
+  its directory outside one, skipping dot-directories and dependency and build
+  folders. `review-exec` then reviews every new or changed file. A denied one is
+  restored to its previous content, or removed if the command created it, and
+  the reason goes back to the agent as a `PostToolUse` block with
+  `additionalContext`. Heredoc writes already reviewed before the command are
+  not reviewed twice.
+
+Bounds: no snapshot past 2000 Markdown files or 8 MB, and files over 1 MB are
+not tracked; such a workspace keeps only the heredoc half. A background command
+(`run_in_background`) gets no snapshot, because it keeps writing after its
+`PostToolUse`. Devin documents `command` in `exec`'s `tool_input` but no tool
+use id, so a call's two halves pair on the command and its directory.
 
 Devin exports `DEVIN_PLUGIN_ROOT` (and `CLAUDE_PLUGIN_ROOT`, `CLAUDE_PROJECT_DIR`)
 to plugin hooks; `PLUGIN_ROOT` from the public docs is **not** set. Hook commands

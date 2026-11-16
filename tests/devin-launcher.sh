@@ -62,6 +62,10 @@ grep -qF "devin-review-write id=env-id payload=$WRITE_PLAN" "$CALLS" \
 [ "$out" = '{"decision":"block","reason":"needs rate limiting"}' ] || fail "the binary's block was not relayed unchanged: $out"
 
 : > "$CALLS"
+run_launcher review-exec '{"tool_name":"exec","session_id":"s1","tool_input":{"command":"ls"}}' "${ENV_CREDS[@]}" >/dev/null
+grep -q '^devin-review-exec ' "$CALLS" || fail "review-exec did not reach devin-review-exec"
+
+: > "$CALLS"
 run_launcher log-prompt '{"prompt":"hi","session_id":"s1"}' "${ENV_CREDS[@]}" >/dev/null
 grep -q '^devin-log-prompt ' "$CALLS" || fail "log-prompt did not reach devin-log-prompt"
 

@@ -22,6 +22,7 @@
 #   log-prompt    UserPromptSubmit -> devin-log-prompt   (audit, setup notice)
 #   check-update  SessionStart     -> devin-check-update (self-update)
 #   review-write  PreToolUse       -> devin-review-write (plan gate)
+#   review-exec   PostToolUse(exec) -> devin-review-exec (exec plan gate)
 #   discover <ev> any (debug)      -> log full stdin payload, allow
 set -uo pipefail
 
@@ -85,6 +86,7 @@ fi
 case "$SUB" in
   log-prompt)   printf '%s' "$IN" | "$BIN" devin-log-prompt 2>/dev/null ;;
   review-write) printf '%s' "$IN" | "$BIN" devin-review-write 2>/dev/null ;;
+  review-exec)  printf '%s' "$IN" | "$BIN" devin-review-exec 2>/dev/null ;;
   # Self-update; the binary owns the TTL and the channel decision. Stdout is
   # suppressed so Devin never parses update chatter as a hook decision.
   check-update) printf '%s' "$IN" | "$BIN" devin-check-update >/dev/null 2>&1 ;;
