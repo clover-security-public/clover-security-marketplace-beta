@@ -116,8 +116,14 @@ update check; the machine has `jq` and bash; `UserPromptSubmit` fires and the
 missing-credentials notice reaches the agent verbatim. Because the plugin loads
 after the session starts, the **first prompt is not logged**. The agent has no
 file-write tool and writes every file through `exec`, which is why the **Exec
-gate** exists. Still open: whether the manifest `env` reaches the hook process
-(those sessions had no secrets set). The Devin API integration (`IntegrationType.Devin`)
+gate** exists. On 0.1.109-beta.1 the gate was verified end to end up to the
+review call: each `exec` starts from `$HOME`, a heredoc plan is intercepted
+before the command runs at its real path, `PostToolUse` fires after every
+command, a plan written by `python3` is caught as `md changed by exec`, and a
+heredoc plan is not reviewed twice. Still open, because those sessions had no
+Clover credentials and every review stopped at `auth failed`: whether the
+manifest `env` reaches the hook process, and how a `PostToolUse` deny reaches
+the agent (the restore itself is covered by `agent_devin_exec_test.go`). The Devin API integration (`IntegrationType.Devin`)
 is separate: it reports usage (sessions, users, AI-written lines) and reviews no
 plans. Customer-facing steps live in clover-docs, under *Connecting Kura To
 Coding Agents → Devin → Cloud sessions*.
