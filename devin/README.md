@@ -109,6 +109,14 @@ An org admin sets it up once, with no developer machine involved:
 Changes apply from the next session; running sessions keep what they loaded at
 start. The enterprise scope (`secret:enterprise:`) covers every org at once.
 
+Each reference must name the scope its secret lives in. A `secret:personal:`
+reference to a secret stored at org scope resolves to nothing, and Devin leaves
+the variable unset in the hook process. The local Devin CLI applies the same
+`env` block without resolving secrets, so the hooks receive the literal
+`secret:...` string. The launcher and the binary treat such a value as unset, so
+a developer machine that shares the manifest still reads `env.sh` from
+`configure.sh`.
+
 **Verified in live cloud sessions (2026-11-16, personal install, beta
 channel):** the plugin installs a few seconds after the session starts;
 `DEVIN_PLUGIN_ROOT` resolves, so `SessionStart` deployed the binary and ran the
