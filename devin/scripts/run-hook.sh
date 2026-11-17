@@ -28,6 +28,11 @@ set -uo pipefail
 
 SUB="${1:-}"
 
+# When this launcher started, so the binary's hook_duration log line can report
+# the time spent here before it ran (since_launch_ms). bash 5 has it to the
+# microsecond; macOS's bash 3.2 falls back to whole seconds from date.
+export CLOVER_HOOK_LAUNCHED_AT="${EPOCHREALTIME:-$(date +%s)}"
+
 IN="$(cat 2>/dev/null || true)"
 
 # ── locate root, data dir, binary (idempotent; independent of SessionStart) ──

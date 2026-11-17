@@ -26,6 +26,11 @@ set -uo pipefail
 
 SUB="${1:-}"
 
+# When this launcher started, so the binary's hook_duration log line can report
+# the time spent here before it ran (since_launch_ms). bash 5 has it to the
+# microsecond; macOS's bash 3.2 falls back to whole seconds from date.
+export CLOVER_HOOK_LAUNCHED_AT="${EPOCHREALTIME:-$(date +%s)}"
+
 # Agent identity forwarded to the binary on every invocation. agentName is
 # free-text for audit rows; codingAgent must match the server's
 # CodingAgentType enum (Infrastructure/Entities/Enums/CodingAgentType.cs).
