@@ -28,6 +28,9 @@
     "defaultPrompt": [
       "Ask Clover which open threats on my applications I should fix first."
     ],
-    "websiteURL": "https://docs.cloversec.io/product-guides/securing-agentic-development/connecting-clover-to-coding-agents"
+    "websiteURL": "https://docs.cloversec.io/product-guides/securing-agentic-development/connecting-clover-to-coding-agents",
+    "supportURL": "https://clover.security/support/",
+    "privacyPolicyURL": "https://clover.security/privacy-policy/",
+    "termsOfServiceURL": "https://clover.security/terms-of-use/"
   }
 }

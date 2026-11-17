@@ -19,6 +19,9 @@
     "defaultPrompt": [
       "Use Clover to review the security of my implementation plan before coding."
     ],
-    "websiteURL": "https://docs.cloversec.io/product-guides/kura-securing-agentic-development/about-kura"
+    "websiteURL": "https://docs.cloversec.io/product-guides/kura-securing-agentic-development/about-kura",
+    "supportURL": "https://clover.security/support/",
+    "privacyPolicyURL": "https://clover.security/privacy-policy/",
+    "termsOfServiceURL": "https://clover.security/terms-of-use/"
   }
 }
