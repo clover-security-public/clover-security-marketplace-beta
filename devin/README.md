@@ -379,6 +379,33 @@ Every hook path fails open: a missing or unverifiable binary, auth
 failure, an unparseable payload, or a server timeout all allow the write. The
 gate blocks only on an explicit deny from the server.
 
+## Developer attribution
+
+Devin's hook payloads carry no account, so every hook sends the developer's
+Devin account first, as the `devin_account` identity, then the
+`CLOVER_SECURITY_KURA_PLUGIN_USER_EMAIL` setting and git's `user.email`.
+
+- **Local CLI / Desktop.** The CLI keeps no account on disk
+  (`~/.local/share/devin/credentials.toml` holds only an API key); the
+  signed-in user comes from Devin's server through `devin auth status`
+  (~0.5s). The `SessionStart` hook (`session-baseline`) runs `devin auth status
+  --process-model in-process` (never starting Devin's background daemon) and
+  caches the email in `~/.devin/clover/devin-account.json`. It asks again when
+  `credentials.toml` changes (a new login or a logout) or the answer is a day
+  old. No `devin` on `PATH`, a failing or hung CLI (5s cap) and a logged-out CLI
+  all leave attribution to the fallbacks.
+- **Cloud.** A cloud machine has no `devin` CLI. Devin writes the session
+  requester's identity to `/opt/.devin/git_author` at session start (its own
+  git hook sources it to author commits); every hook reads `GIT_AUTHOR_EMAIL`
+  from it as text, never running it. Verified on a live cloud session
+  (2026-11-18). A bot requester (`GIT_DEVIN_EMAIL`) is dropped.
+
+The machine's global git identity there is the Devin bot
+(`…+devin-ai-integration[bot]@users.noreply.github.com`). It is sent only when
+no other address exists (no `git_author`, or a bot requester), because the
+server rejects a request with no email outright, which would turn the review
+off for that session.
+
 ## Debugging
 
 - `CLOVER_DEBUG=1` — launcher diagnostics on stderr.
