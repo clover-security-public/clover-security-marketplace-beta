@@ -10,6 +10,16 @@ if ! git -C "$ROOT" check-attr eol -- claude/scripts/setup.sh | grep -q 'eol: lf
   exit 1
 fi
 
+# GNU sha256sum (Git Bash's included) prefixes the hash with "\" when the file
+# name holds a backslash, and Claude Code exports CLAUDE_PLUGIN_ROOT as a
+# native C:\... path, so hashing a file argument fails every checksum on
+# Windows. Installers must hash from stdin.
+if grep -nE '(sha256sum|shasum -a 256) +"\$' "$ROOT"/claude/scripts/*.sh "$ROOT"/codex/scripts/*.sh \
+    "$ROOT"/devin/scripts/*.sh "$ROOT"/kiro/scripts/*.sh "$ROOT"/cursor/scripts/*.sh "$ROOT"/copilot/scripts/*.sh; then
+  echo "ERROR: hash files from stdin (sha256sum < \"\$file\"): a backslash path breaks the checksum on Windows" >&2
+  exit 1
+fi
+
 MOCK_BIN="$TEST_DIR/mock-bin"
 PLUGIN_ROOT="$TEST_DIR/plugin"
 CLAUDE_DATA="$TEST_DIR/claude-data"
