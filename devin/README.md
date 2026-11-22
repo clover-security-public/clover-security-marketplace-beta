@@ -73,8 +73,8 @@ plugins on the session machine"
 ([plugins](https://docs.devin.ai/product-guides/plugins)). They run `command`
 hooks only, skipping `prompt` hooks
 ([plugins overview](https://docs.devin.ai/cli/extensibility/plugins/overview)),
-and never fire `SessionEnd`. All five Clover hooks are `command` hooks on
-`SessionStart`, `UserPromptSubmit`, `PreToolUse` and `PostToolUse`
+and never fire `SessionEnd`. All nine Clover hooks are `command` hooks on
+`SessionStart`, `UserPromptSubmit`, `PreToolUse`, `PostToolUse` and `Stop`
 (`marketplace/hooks.json`), so none is skipped. The cloud agent writes files
 only through `exec`, which the **Exec gate** covers. A cloud `SessionStart` runs in the background and the agent
 does not wait for it
@@ -212,6 +212,10 @@ without it (a Devin cloud VM is not documented to ship it) still reviews plans.
 | `PostToolUse` (`exec`) | `review-exec` — plan gate for shell writes (see **Exec gate**) | — |
 | — | n/a: the plan is reviewed at `write_plan` | `ExitPlanMode` → `review-plan` |
 | `SessionStart` | `check-update` — self-update (see **Updates**) | same |
+| `SessionStart` | `session-baseline` — pin the starting branch diff; refresh the Devin account (see **Implementation review**, **Developer attribution**) | `session-baseline` |
+| `PreToolUse` (`exec`) | `snapshot-working-tree` — edit-gate fingerprint | `Bash` → `snapshot-working-tree` |
+| `PostToolUse` (`write\|edit\|apply_patch\|notebook_edit\|exec`) | `mark-session-edit` — record an edit | `mark-session-edit` |
+| `Stop` | `stop-implementation-review` — review the branch diff (see **Implementation review**) | `stop-implementation-review` |
 
 `apply_patch` is in the matcher because Devin writes files through it too, and
 GPT-family models write every file with it. It carries a patch rather than the
@@ -373,11 +377,45 @@ snapshot and skip the redeploy a new build needs.
 an older build exits `Unknown command`, the launcher fails open on every write,
 and the gate is silently absent rather than visibly broken.
 
+## Implementation review
+
+The same review of the session's branch diff Claude Code runs, on the shared
+core (`implreview.go`):
+
+- **`SessionStart`** (`session-baseline`, 30s) pins the branch diff a local
+  session starts from, so an unchanged diff is never submitted. A cloud
+  session starts from a fresh clone and runs `SessionStart` in the
+  background, so it pins none.
+- **`PreToolUse(exec)`** (`snapshot-working-tree`, 30s) fingerprints the
+  repositories the command may edit, and **`PostToolUse`** on the edit tools
+  (`mark-session-edit`, 30s) marks the session as having edited, recording the
+  repository: for a write tool, the one holding the file it names; for `exec`,
+  the one whose fingerprint changed. A read-only command, a failed or no-op
+  edit, or a file outside every repository marks nothing. On a cloud machine
+  every command runs from `$HOME`, so every clone under `~/repos` is
+  fingerprinted and the one that changed is recorded.
+- **`Stop`** (`stop-implementation-review`, 120s) submits the recorded
+  repository's branch diff when the session edited and the diff is new, polls
+  the review for up to 90s, and blocks the stop with
+  `{"decision":"block","reason":<requirements>}`. Devin documents no
+  `additionalContext` for `Stop`, so a block is how the agent gets the
+  follow-up work. A 90s expiry keeps the task pending for the next `Stop`.
+- **Block limit:** each fix changes the diff, so each `Stop` could block
+  again. After 3 blocks in a turn the hook reviews nothing and lets the agent
+  stop. The count belongs to a turn: a `Stop` no stop hook kept going
+  (`stop_hook_active` false) clears it, and within a turn only a block changes
+  it. With Clover installed twice (an org plugin and a project
+  `.devin/hooks.v1.json`) the hook runs twice per stop; the limit then runs at
+  most one block over, never more.
+
 ## Fail-open
 
 Every hook path fails open: a missing or unverifiable binary, auth
 failure, an unparseable payload, or a server timeout all allow the write. The
-gate blocks only on an explicit deny from the server.
+gate blocks only on an explicit deny from the server. A backend that does not
+answer a request within 10s (3s to connect) fails it open, and is then skipped
+for 60s, so every hook, `Stop` included, continues at once instead of waiting
+out its timeout.
 
 ## Developer attribution
 
