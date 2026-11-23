@@ -9,6 +9,9 @@
 #
 # Beta marketplace install:
 #   curl -fsSL https://raw.githubusercontent.com/clover-security-public/clover-security-marketplace-beta/main/codex/scripts/install.sh | bash -s -- --beta
+#
+# ChatGPT workspace rollout (builds the credentials plugin the admin uploads):
+#   curl -fsSL https://raw.githubusercontent.com/clover-security-public/agentic-security-marketplace/main/codex/scripts/install.sh | bash -s -- --workspace
 set -euo pipefail
 
 MODE="developer"
@@ -17,9 +20,10 @@ CHANNEL="public"
 for argument in "$@"; do
   case "$argument" in
     --managed) MODE="managed" ;;
+    --workspace) MODE="workspace" ;;
     --beta) CHANNEL="beta" ;;
     -h|--help)
-      printf 'usage: install.sh [--managed] [--beta]\n'
+      printf 'usage: install.sh [--managed | --workspace] [--beta]\n'
       exit 0
       ;;
     *)
@@ -170,6 +174,54 @@ run_doctor() {
     *) printf 'clover: backend verification failed: %s\n' "$RESULT" >&2; exit 1 ;;
   esac
 }
+
+# A ChatGPT workspace import never runs this installer on members' machines, so
+# the admin runs it once: it verifies the credentials with the doctor, then
+# packs them into the "Clover Kura connection" plugin (templates in
+# codex/workspace-credentials/) that the admin uploads and sets to Installed.
+# Kura reads its clover-credentials.json from each member's plugin cache.
+if [ "$MODE" = "workspace" ]; then
+  command -v zip >/dev/null || { printf 'clover: zip is required\n' >&2; exit 1; }
+  STAGE="$TEMP_DIR/runtime"
+  stage_runtime "$STAGE"
+  configure_credentials "$TEMP_DIR/env.sh"
+  export CLAUDE_PLUGIN_ROOT="$STAGE"
+  export CLAUDE_PLUGIN_DATA="$TEMP_DIR/data"
+  mkdir -p "$CLAUDE_PLUGIN_DATA"
+  # shellcheck disable=SC1091
+  . "$TEMP_DIR/env.sh"
+  run_doctor "$STAGE/bin/clover-hook"
+
+  json_string() {
+    local value=${1//\\/\\\\}
+    value=${value//\"/\\\"}
+    printf '"%s"' "$value"
+  }
+  # Every build is a newer version, so a re-upload always replaces the last one.
+  VERSION="0.1.$(date +%Y%m%d%H%M)"
+  PLUGIN="$TEMP_DIR/clover-credentials"
+  mkdir -p "$PLUGIN/.codex-plugin" "$PLUGIN/skills/kura-connection" "$PLUGIN/assets"
+  obtain "codex/workspace-credentials/plugin.json" "$TEMP_DIR/plugin.json"
+  sed "s/@VERSION@/$VERSION/" "$TEMP_DIR/plugin.json" > "$PLUGIN/.codex-plugin/plugin.json"
+  obtain "codex/workspace-credentials/SKILL.md" "$PLUGIN/skills/kura-connection/SKILL.md"
+  obtain "codex/workspace-credentials/clover-icon.svg" "$PLUGIN/assets/clover-icon.svg"
+  printf '{\n  "client_id": %s,\n  "client_secret": %s,\n  "server_url": %s,\n  "auth_url": %s\n}\n' \
+    "$(json_string "$CLIENT_ID")" "$(json_string "$CLIENT_SECRET")" \
+    "$(json_string "$SERVER_URL")" "$(json_string "$AUTH_URL")" > "$PLUGIN/clover-credentials.json"
+  chmod 600 "$PLUGIN/clover-credentials.json"
+
+  DOWNLOADS="$HOME/Downloads"
+  [ -d "$DOWNLOADS" ] || DOWNLOADS="$PWD"
+  OUT="${CLOVER_CODEX_WORKSPACE_ZIP:-$DOWNLOADS/clover-credentials-$VERSION.zip}"
+  mkdir -p "$(dirname "$OUT")"
+  rm -f "$OUT"
+  (cd "$PLUGIN" && zip -qrXD "$OUT" .)
+  chmod 600 "$OUT"
+  printf 'clover: built %s\n' "$OUT"
+  printf 'clover: upload it in admin.openai.com: Marketplaces > Add > Upload plugin, then set "Clover Kura connection" to Installed\n'
+  printf 'clover: the zip holds the client secret; delete it after uploading\n'
+  exit 0
+fi
 
 if [ "$MODE" = "developer" ]; then
   command -v codex >/dev/null || { printf 'clover: Codex CLI is required\n' >&2; exit 1; }

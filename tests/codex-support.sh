@@ -362,4 +362,48 @@ for plugin in clover-for-security-teams clover-for-developers; do
   fi
 done
 
-printf 'Codex developer and managed installers, MCP plugin updates: OK\n'
+# Workspace mode: a ChatGPT workspace import never runs this installer on
+# members' machines, so the admin runs it once to verify the credentials with
+# the doctor and pack them into the "Clover Kura connection" plugin they upload.
+# It never touches the local Codex install.
+mkdir -p "$FAKE_MARKETPLACE/codex/workspace-credentials"
+cp "$ROOT"/codex/workspace-credentials/* "$FAKE_MARKETPLACE/codex/workspace-credentials/"
+WORKSPACE_ZIP="$TEST_DIR/workspace-out/clover-credentials.zip"
+WORKSPACE_SECRET='se"cr\et value'
+WORKSPACE_LOG="$TEST_DIR/workspace-codex-commands.log"
+env "${COMMON_ENV[@]}" CLOVER_SECURITY_KURA_PLUGIN_CLIENT_SECRET="$WORKSPACE_SECRET" \
+  CLOVER_CODEX_WORKSPACE_ZIP="$WORKSPACE_ZIP" CODEX_COMMAND_LOG="$WORKSPACE_LOG" \
+  bash "$TEST_DIR/install.sh" --workspace > "$TEST_DIR/workspace.out" 2>&1
+grep -q 'backend verification succeeded' "$TEST_DIR/workspace.out"
+if grep -qF 'se"cr' "$TEST_DIR/workspace.out"; then
+  printf 'workspace mode printed the client secret\n' >&2
+  exit 1
+fi
+if [ -e "$WORKSPACE_LOG" ]; then
+  printf 'workspace mode ran the codex CLI: %s\n' "$(cat "$WORKSPACE_LOG")" >&2
+  exit 1
+fi
+python3 - "$WORKSPACE_ZIP" "$WORKSPACE_SECRET" <<'PY2'
+import json, os, re, stat, sys, zipfile
+path, secret = sys.argv[1], sys.argv[2]
+assert stat.S_IMODE(os.stat(path).st_mode) == 0o600, oct(os.stat(path).st_mode)
+with zipfile.ZipFile(path) as archive:
+    names = set(archive.namelist())
+    assert names == {".codex-plugin/plugin.json", "clover-credentials.json",
+                     "skills/kura-connection/SKILL.md", "assets/clover-icon.svg"}, names
+    creds = json.loads(archive.read("clover-credentials.json"))
+    assert creds == {"client_id": "test-client", "client_secret": secret,
+                     "server_url": "https://api.cloversec.io",
+                     "auth_url": "https://auth.cloversec.io"}, creds
+    # Codex writes the file with the mode it has in the archive: owner-only.
+    assert (archive.getinfo("clover-credentials.json").external_attr >> 16) & 0o077 == 0
+    manifest = json.loads(archive.read(".codex-plugin/plugin.json"))
+    assert manifest["name"] == "clover-credentials", manifest
+    assert re.fullmatch(r"\d+\.\d+\.\d+", manifest["version"]), manifest
+    assert manifest["skills"] == "./skills/", manifest
+    # OpenAI's upload validator requires both icons, as files in the archive.
+    for key in ("logo", "composerIcon"):
+        assert manifest["interface"][key].removeprefix("./") in names, (key, manifest)
+PY2
+
+printf 'Codex developer and managed installers, workspace credentials, MCP plugin updates: OK\n'

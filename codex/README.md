@@ -67,6 +67,25 @@ curl -fsSL https://raw.githubusercontent.com/clover-security-public/clover-secur
 This installs `clover@clover-security-beta`. Do not enable the public and beta
 plugins together because both copies would run the same hooks.
 
+## ChatGPT workspace rollout
+
+A workspace admin can install Kura for every member without touching their
+machines: import this marketplace in admin.openai.com and set **Clover
+Security - Kura** to Installed. A workspace install never runs this installer,
+so the credentials travel in a second plugin the admin builds once:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/clover-security-public/agentic-security-marketplace/main/codex/scripts/install.sh | bash -s -- --workspace
+```
+
+It asks for the client ID and secret, verifies them against Clover, and writes
+`~/Downloads/clover-credentials-<version>.zip`. Upload it under **Marketplaces →
+Add → Upload plugin** and set **Clover Kura connection** to Installed. Kura
+reads its `clover-credentials.json` from each member's Codex plugin cache when
+no credentials are set locally. Members restart the ChatGPT app and approve
+Kura's hooks once. To rotate, run the command again and upload the new zip;
+the newest version wins.
+
 ## Administrator-managed installation
 
 On a machine without an existing `/etc/codex/requirements.toml`:

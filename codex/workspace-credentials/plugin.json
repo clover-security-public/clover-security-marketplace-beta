@@ -1,0 +1,22 @@
+{
+  "name": "clover-credentials",
+  "version": "@VERSION@",
+  "description": "Connection settings for Clover Security - Kura in this workspace. Install it alongside Kura. It adds no tools or hooks.",
+  "author": { "name": "Clover Security", "url": "https://clover.security" },
+  "homepage": "https://docs.cloversec.io/product-guides/kura-securing-agentic-development/about-kura",
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Clover Kura connection",
+    "shortDescription": "Connects Kura to Clover",
+    "longDescription": "Holds the connection settings Clover Security - Kura uses to reach your Clover tenant. Install it alongside Kura. It adds no tools or hooks.",
+    "developerName": "Clover Security",
+    "category": "Security",
+    "capabilities": [],
+    "logo": "./assets/clover-icon.svg",
+    "composerIcon": "./assets/clover-icon.svg",
+    "websiteURL": "https://docs.cloversec.io/product-guides/kura-securing-agentic-development/about-kura",
+    "supportURL": "https://clover.security/support/",
+    "privacyPolicyURL": "https://clover.security/privacy-policy/",
+    "termsOfServiceURL": "https://clover.security/terms-of-use/"
+  }
+}
