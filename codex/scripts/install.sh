@@ -12,26 +12,57 @@
 #
 # ChatGPT workspace rollout (builds the credentials plugin the admin uploads):
 #   curl -fsSL https://raw.githubusercontent.com/clover-security-public/agentic-security-marketplace/main/codex/scripts/install.sh | bash -s -- --workspace
+#
+# Single-tenant or BYOC Clover, with any mode (the auth host defaults to auth.
+# beside the API host):
+#   ... | bash -s -- --server-url https://api.<your-host> [--auth-url https://<auth-host>]
 set -euo pipefail
 
 MODE="developer"
 CHANNEL="public"
 
-for argument in "$@"; do
-  case "$argument" in
+# Single-tenant and BYOC tenants run Clover on their own host: --server-url
+# names its API, and the auth host follows it (api. -> auth.) unless
+# --auth-url names another. Interactive runs ask for both, defaulting to the
+# shared https://api.cloversec.io.
+SERVER_URL_ARG=""
+AUTH_URL_ARG=""
+usage() { printf 'usage: install.sh [--managed | --workspace] [--beta] [--server-url URL] [--auth-url URL]\n'; }
+while [ "$#" -gt 0 ]; do
+  case "$1" in
     --managed) MODE="managed" ;;
     --workspace) MODE="workspace" ;;
     --beta) CHANNEL="beta" ;;
+    --server-url|--auth-url)
+      [ "$#" -ge 2 ] || { printf 'clover: %s needs a URL\n' "$1" >&2; exit 2; }
+      if [ "$1" = "--server-url" ]; then SERVER_URL_ARG="$2"; else AUTH_URL_ARG="$2"; fi
+      shift
+      ;;
+    --server-url=*) SERVER_URL_ARG="${1#*=}" ;;
+    --auth-url=*) AUTH_URL_ARG="${1#*=}" ;;
     -h|--help)
-      printf 'usage: install.sh [--managed | --workspace] [--beta]\n'
+      usage
       exit 0
       ;;
     *)
-      printf 'clover: unknown argument: %s\n' "$argument" >&2
+      printf 'clover: unknown argument: %s\n' "$1" >&2
+      usage >&2
       exit 2
       ;;
   esac
+  shift
 done
+
+# check_url <name> <value>: an https URL with a host, or exit before anything
+# is installed or built.
+check_url() {
+  case "$2" in
+    https://?*) ;;
+    *) printf 'clover: %s must be an https URL (got %s)\n' "$1" "$2" >&2; exit 2 ;;
+  esac
+}
+[ -z "$SERVER_URL_ARG" ] || check_url "--server-url" "$SERVER_URL_ARG"
+[ -z "$AUTH_URL_ARG" ] || check_url "--auth-url" "$AUTH_URL_ARG"
 
 case "$CHANNEL" in
   beta)
@@ -116,6 +147,15 @@ credential_file() {
   fi
 }
 
+# auth_url_for <api url>: Clover's auth host beside its API host
+# (https://api.X -> https://auth.X); the shared auth host for any other name.
+auth_url_for() {
+  case "$1" in
+    https://api.*) printf 'https://auth.%s\n' "${1#https://api.}" ;;
+    *) printf 'https://auth.cloversec.io\n' ;;
+  esac
+}
+
 configure_credentials() {
   ENV_FILE="$1"
   if [ -f "$ENV_FILE" ] && {
@@ -123,7 +163,7 @@ configure_credentials() {
       && grep -Eq '^export CLOVER_SECURITY_KURA_PLUGIN_CLIENT_SECRET=.+$' "$ENV_FILE"; } \
       || { grep -Eq '^export CAS_CLOVER_PLUGIN_CLIENT_ID=.+$' "$ENV_FILE" \
         && grep -Eq '^export CAS_CLOVER_PLUGIN_CLIENT_SECRET=.+$' "$ENV_FILE"; }
-  } && [ -z "${CLOVER_SECURITY_KURA_PLUGIN_CLIENT_ID:-}${CLOVER_SECURITY_KURA_PLUGIN_CLIENT_SECRET:-}${CAS_CLOVER_PLUGIN_CLIENT_ID:-}${CAS_CLOVER_PLUGIN_CLIENT_SECRET:-}" ]; then
+  } && [ -z "${CLOVER_SECURITY_KURA_PLUGIN_CLIENT_ID:-}${CLOVER_SECURITY_KURA_PLUGIN_CLIENT_SECRET:-}${CAS_CLOVER_PLUGIN_CLIENT_ID:-}${CAS_CLOVER_PLUGIN_CLIENT_SECRET:-}${SERVER_URL_ARG}${AUTH_URL_ARG}" ]; then
     chmod 600 "$ENV_FILE"
     printf 'clover: preserving credentials in %s\n' "$ENV_FILE"
     return
@@ -131,8 +171,8 @@ configure_credentials() {
 
   CLIENT_ID="${CLOVER_SECURITY_KURA_PLUGIN_CLIENT_ID:-${CAS_CLOVER_PLUGIN_CLIENT_ID:-}}"
   CLIENT_SECRET="${CLOVER_SECURITY_KURA_PLUGIN_CLIENT_SECRET:-${CAS_CLOVER_PLUGIN_CLIENT_SECRET:-}}"
-  AUTH_URL="${CLOVER_SECURITY_KURA_PLUGIN_AUTH_URL:-${CAS_CLOVER_PLUGIN_AUTH_URL:-https://auth.cloversec.io}}"
-  SERVER_URL="${CLOVER_SECURITY_KURA_PLUGIN_SERVER_URL:-${CAS_CLOVER_PLUGIN_SERVER_URL:-https://api.cloversec.io}}"
+  SERVER_URL="${SERVER_URL_ARG:-${CLOVER_SECURITY_KURA_PLUGIN_SERVER_URL:-${CAS_CLOVER_PLUGIN_SERVER_URL:-}}}"
+  AUTH_URL="${AUTH_URL_ARG:-${CLOVER_SECURITY_KURA_PLUGIN_AUTH_URL:-${CAS_CLOVER_PLUGIN_AUTH_URL:-}}}"
 
   if { [ -z "$CLIENT_ID" ] || [ -z "$CLIENT_SECRET" ]; } \
     && [ -z "${CLOVER_SECURITY_KURA_PLUGIN_NO_PROMPT:-${CLOVER_NO_PROMPT:-}}" ] \
@@ -143,8 +183,23 @@ configure_credentials() {
     printf 'Client secret: ' >&3
     IFS= read -rs CLIENT_SECRET <&3 || CLIENT_SECRET=""
     printf '\n' >&3
+    if [ -z "$SERVER_URL" ]; then
+      printf 'Clover API URL [https://api.cloversec.io]: ' >&3
+      IFS= read -r SERVER_URL <&3 || SERVER_URL=""
+    fi
+    if [ -z "$AUTH_URL" ]; then
+      SUGGESTED_AUTH_URL="$(auth_url_for "${SERVER_URL:-https://api.cloversec.io}")"
+      printf 'Auth URL [%s]: ' "$SUGGESTED_AUTH_URL" >&3
+      IFS= read -r AUTH_URL <&3 || AUTH_URL=""
+    fi
     exec 3>&- 2>/dev/null || true
   fi
+  SERVER_URL="${SERVER_URL:-https://api.cloversec.io}"
+  SERVER_URL="${SERVER_URL%/}"
+  AUTH_URL="${AUTH_URL:-$(auth_url_for "$SERVER_URL")}"
+  AUTH_URL="${AUTH_URL%/}"
+  check_url "the Clover API URL" "$SERVER_URL"
+  check_url "the auth URL" "$AUTH_URL"
   if [ -z "$CLIENT_ID" ] || [ -z "$CLIENT_SECRET" ]; then
     printf 'clover: client credentials are required; set CLOVER_SECURITY_KURA_PLUGIN_CLIENT_ID and CLOVER_SECURITY_KURA_PLUGIN_CLIENT_SECRET or run interactively\n' >&2
     exit 1

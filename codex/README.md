@@ -78,13 +78,24 @@ so the credentials travel in a second plugin the admin builds once:
 curl -fsSL https://raw.githubusercontent.com/clover-security-public/agentic-security-marketplace/main/codex/scripts/install.sh | bash -s -- --workspace
 ```
 
-It asks for the client ID and secret, verifies them against Clover, and writes
+It asks for the client ID and secret and the Clover API URL (Enter keeps the
+shared `https://api.cloversec.io`; the auth URL defaults to the matching
+`auth.` host), verifies them against Clover, and writes
 `~/Downloads/clover-credentials-<version>.zip`. Upload it under **Marketplaces →
 Add → Upload plugin** and set **Clover Kura connection** to Installed. Kura
 reads its `clover-credentials.json` from each member's Codex plugin cache when
 no credentials are set locally. Members restart the ChatGPT app and approve
 Kura's hooks once. To rotate, run the command again and upload the new zip;
 the newest version wins.
+
+A single-tenant or BYOC Clover names its host up front instead, with any mode:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/clover-security-public/agentic-security-marketplace/main/codex/scripts/install.sh | bash -s -- --workspace --server-url https://api.<your-host>
+```
+
+Add `--auth-url https://<auth-host>` when the auth host is not `auth.` beside
+the API host.
 
 ## Administrator-managed installation
 

@@ -406,4 +406,41 @@ with zipfile.ZipFile(path) as archive:
         assert manifest["interface"][key].removeprefix("./") in names, (key, manifest)
 PY2
 
+# Single-tenant and BYOC tenants run Clover on their own host. --server-url
+# picks the API, the auth host follows it (api. -> auth.) unless --auth-url
+# names another, and both land in the workspace credentials and in env.sh.
+workspace_creds() { # workspace_creds <zip> -> the credentials JSON
+  python3 -c 'import sys,zipfile; print(zipfile.ZipFile(sys.argv[1]).read("clover-credentials.json").decode())' "$1"
+}
+env "${COMMON_ENV[@]}" CLOVER_CODEX_WORKSPACE_ZIP="$TEST_DIR/tenant-1.zip" \
+  bash "$TEST_DIR/install.sh" --workspace --server-url https://api.tenant.example.test/ > /dev/null
+workspace_creds "$TEST_DIR/tenant-1.zip" | python3 -c '
+import json, sys
+creds = json.load(sys.stdin)
+assert creds["server_url"] == "https://api.tenant.example.test", creds
+assert creds["auth_url"] == "https://auth.tenant.example.test", creds'
+env "${COMMON_ENV[@]}" CLOVER_CODEX_WORKSPACE_ZIP="$TEST_DIR/tenant-2.zip" \
+  bash "$TEST_DIR/install.sh" --workspace --server-url=https://clover.byoc.example.test --auth-url=https://login.byoc.example.test > /dev/null
+workspace_creds "$TEST_DIR/tenant-2.zip" | python3 -c '
+import json, sys
+creds = json.load(sys.stdin)
+assert creds["server_url"] == "https://clover.byoc.example.test", creds
+assert creds["auth_url"] == "https://login.byoc.example.test", creds'
+TENANT_HOME="$TEST_DIR/tenant-codex-home"
+env "${COMMON_ENV[@]}" CODEX_HOME="$TENANT_HOME" CODEX_COMMAND_LOG="$TEST_DIR/tenant-commands.log" \
+  bash "$TEST_DIR/install.sh" --server-url https://api.tenant.example.test > /dev/null
+grep -qx 'export CLOVER_SECURITY_KURA_PLUGIN_SERVER_URL=https://api.tenant.example.test' "$TENANT_HOME/plugins/data/clover-clover-security/env.sh"
+grep -qx 'export CLOVER_SECURITY_KURA_PLUGIN_AUTH_URL=https://auth.tenant.example.test' "$TENANT_HOME/plugins/data/clover-clover-security/env.sh"
+for bad in http://api.tenant.example.test 'https://' '--auth-url'; do
+  if env "${COMMON_ENV[@]}" CLOVER_CODEX_WORKSPACE_ZIP="$TEST_DIR/bad.zip" \
+    bash "$TEST_DIR/install.sh" --workspace --server-url "$bad" > /dev/null 2> "$TEST_DIR/bad.err"; then
+    printf 'installer accepted --server-url %s\n' "$bad" >&2
+    exit 1
+  fi
+done
+if [ -e "$TEST_DIR/bad.zip" ]; then
+  printf 'installer built a zip for an invalid server URL\n' >&2
+  exit 1
+fi
+
 printf 'Codex developer and managed installers, workspace credentials, MCP plugin updates: OK\n'
